@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { assessHuntingViability, getStateHuntingData, STATE_WILDLIFE_AGENCIES } from '@/lib/hunting-data'
+import { getStateRegulations } from '@/lib/state-regulations-db'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
@@ -31,6 +32,10 @@ export async function POST(request: NextRequest) {
     // STEP 2: Get state wildlife agency info
     const stateData = await getStateHuntingData(state)
 
+    // STEP 3: Get REAL regulations from curated database
+    console.log(`Loading regulations database for ${state}...`)
+    const stateRegs = getStateRegulations(state)
+
     // If urban area with no hunting, return early
     if (!viability.isViable) {
       return NextResponse.json({
@@ -47,6 +52,95 @@ export async function POST(request: NextRequest) {
         }
       })
     }
+
+    // If we have REAL regulations from database, use them directly
+    if (stateRegs) {
+      console.log(`Using REAL ${state} regulations from database (Last updated: ${stateRegs.lastUpdated})`)
+
+      // Format seasons from database
+      const seasonsFormatted = Object.entries(stateRegs.seasons).map(([species, seasons]) => {
+        const seasonLines = Object.entries(seasons).map(([type, dates]) => `   • ${type}: ${dates}`)
+        return `🦌 ${species}\n${seasonLines.join('\n')}`
+      }).join('\n\n')
+
+      // Format licenses from database
+      const licensesFormatted = Object.entries(stateRegs.licenses).map(([type, cost]) =>
+        `   • ${type}: ${cost}`
+      ).join('\n')
+
+      // Format bag limits from database
+      const bagLimitsFormatted = Object.entries(stateRegs.bagLimits).map(([species, limit]) =>
+        `   • ${species}: ${limit}`
+      ).join('\n')
+
+      // Format weapons from database
+      const weaponsFormatted = Object.entries(stateRegs.weapons).map(([type, req]) =>
+        `   • ${type}: ${req}`
+      ).join('\n')
+
+      const regulationsText = `📋 LICENSE REQUIREMENTS\n${licensesFormatted}\n\n🎯 BAG LIMITS (${stateRegs.stateName} - 2024-25 Season)\n${bagLimitsFormatted}\n\n⏰ LEGAL HOURS\n   ${stateRegs.legalHours}\n\n🔫 WEAPONS\n${weaponsFormatted}\n\n📅 Data Last Updated: ${stateRegs.lastUpdated}\n\n⚠️ Official Source:\n${stateRegs.source.name}\n${stateRegs.source.huntingGuideUrl}\n\nBuy Licenses: ${stateRegs.source.licenseUrl}`
+
+      // Still use GPT for summary, species, times, and tactics (weather-based)
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are Hunt Wet AI. Generate hunting intelligence for ${location.displayName}, ${state}.
+
+YOU MUST RETURN VALID JSON:
+{
+  "summary": "string",
+  "species": ["string"],
+  "bestTimes": "string",
+  "tactics": "string"
+}
+
+Focus on:
+1. **summary**: 3-4 sentences about current weather conditions and best hunting windows
+2. **species**: List huntable game in ${state} (based on the seasons we have: ${Object.keys(stateRegs.seasons).join(', ')})
+3. **bestTimes**: Specific morning/evening times for next 3 days based on weather
+4. **tactics**: Location strategy, wind, setup for ${location.displayName} area`
+          },
+          {
+            role: 'user',
+            content: `Location: ${location.displayName}, ${state}\nWeather: ${weatherSummary}\n\nGenerate summary, species, bestTimes, and tactics.`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 1500
+      })
+
+      const rawContent = completion.choices[0]?.message?.content || ''
+      let gptData
+      try {
+        const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
+        gptData = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(rawContent)
+      } catch (e) {
+        console.error('Failed to parse GPT response:', e)
+        gptData = {
+          summary: 'Hunting conditions analysis unavailable.',
+          species: Object.keys(stateRegs.seasons),
+          bestTimes: 'Check weather patterns for optimal timing.',
+          tactics: 'Adapt to current conditions.'
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        intel: {
+          summary: gptData.summary,
+          species: gptData.species,
+          bestTimes: gptData.bestTimes,
+          tactics: gptData.tactics,
+          seasons: seasonsFormatted,
+          regulations: regulationsText
+        }
+      })
+    }
+
+    // FALLBACK: If DNR scraping failed, use old GPT-based approach
+    console.log(`DNR scraping failed for ${state}, falling back to GPT estimates`)
 
     // Generate comprehensive hunting intel
     const completion = await openai.chat.completions.create({
