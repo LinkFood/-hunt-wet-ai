@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Target, Cloud, Activity, Calendar, MapPin, MessageSquare } from 'lucide-react'
 import HuntingChat from '@/components/HuntingChat'
 import InformationHub from '@/components/InformationHub'
+import AIIntelSummary from '@/components/AIIntelSummary'
 import { getQuickLocationName } from '@/lib/geocoding'
 import { trackLocationSearch } from '@/lib/supabase-setup'
 
@@ -18,7 +19,6 @@ interface HuntLocation {
 export default function Home() {
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null)
   const [location, setLocation] = useState<HuntLocation | null>(null)
-  const [activeTab, setActiveTab] = useState(0) // 0=Chat, 1=Weather, 2=Intel, 3=Regs
 
   // Load saved data on mount
   useEffect(() => {
@@ -241,17 +241,15 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
-      {/* Mobile Header */}
-      <header className="bg-gray-800 border-b border-gray-700 px-4 py-4 flex-shrink-0">
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-gray-950 text-gray-100">
+      {/* Header - Compact */}
+      <header className="bg-gray-900/80 backdrop-blur border-b border-gray-800 px-4 py-3 sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <Target className="w-7 h-7 text-orange-400" />
+            <Target className="w-6 h-6 text-orange-400" />
             <div>
-              <h1 className="text-xl font-bold text-orange-400">HUNT WET AI</h1>
-              <p className="text-xs text-gray-400">
-                {location.displayName} • Learning patterns
-              </p>
+              <h1 className="text-lg font-bold text-orange-400">HUNT WET</h1>
+              <p className="text-xs text-gray-400">{location.displayName}</p>
             </div>
           </div>
           <button
@@ -259,65 +257,44 @@ export default function Home() {
               localStorage.clear()
               setLocation(null)
             }}
-            className="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-xs transition-colors"
+            className="bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg text-xs transition-colors"
           >
-            Change Location
+            Change
           </button>
         </div>
       </header>
 
-      {/* Mobile Navigation Tabs */}
-      <div className="bg-gray-800 border-b border-gray-700 px-4 flex-shrink-0">
-        <div className="flex">
-          {[
-            { name: 'Hub', icon: Activity },
-            { name: 'Chat', icon: MessageSquare }
-          ].map((tab, index) => (
-            <button
-              key={tab.name}
-              onClick={() => setActiveTab(index)}
-              className={`flex-1 flex items-center justify-center space-x-2 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === index
-                  ? 'border-orange-400 text-orange-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              <span>{tab.name}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* SINGLE PAGE LAYOUT - Everything flows down */}
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
 
-      {/* Mobile Content */}
-      <div className="flex-1 bg-gray-900 overflow-hidden">
-        {/* Tab 0: Information Hub */}
-        {activeTab === 0 && (
-          <div className="h-full overflow-y-auto p-4">
-            <InformationHub location={location} gameType={selectedGameType} />
+        {/* INFORMATION HUB (Weather, Seasons, Data) */}
+        <InformationHub location={location} gameType={selectedGameType} />
+
+        {/* AI INTEL SUMMARY - THE HOOK */}
+        <AIIntelSummary location={location} gameType={selectedGameType} />
+
+        {/* CHAT INTERFACE - At the bottom */}
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <div className="flex items-center space-x-2 mb-4">
+            <MessageSquare className="w-5 h-5 text-orange-400" />
+            <h2 className="text-lg font-bold text-gray-100">Ask Hunt Wet AI</h2>
           </div>
-        )}
-
-        {/* Tab 1: Chat */}
-        {activeTab === 1 && (
-          <div className="h-full flex flex-col p-4">
-            <HuntingChat
-              hasZipCode={true}
-              zipCode={location.displayZip}
-              gameType={selectedGameType}
-              onZipCodeSubmission={handleZipCodeSubmission}
-              onGameTypeChange={handleGameTypeChange}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Mobile Footer */}
-      <div className="bg-gray-800 border-t border-gray-700 px-4 py-3 flex-shrink-0">
-        <div className="text-center">
-          <p className="text-xs text-gray-500">Hunt Wet AI • Learning {location.displayName} patterns</p>
+          <HuntingChat
+            hasZipCode={true}
+            zipCode={location.displayZip}
+            gameType={selectedGameType}
+            onZipCodeSubmission={handleZipCodeSubmission}
+            onGameTypeChange={handleGameTypeChange}
+          />
         </div>
-      </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 border-t border-gray-800 px-4 py-4 mt-12">
+        <div className="max-w-6xl mx-auto text-center">
+          <p className="text-xs text-gray-500">Hunt Wet AI • Mining {location.displayName} hunting patterns</p>
+        </div>
+      </footer>
     </div>
   )
 }
