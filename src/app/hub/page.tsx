@@ -159,22 +159,36 @@ export default function HubPage() {
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
         {/* 7-Day Forecast */}
         <section>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">7-Day Forecast</h2>
-          <div className="grid grid-cols-7 gap-2">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">7-Day Weather Forecast</h2>
+          <div className="grid grid-cols-7 gap-3">
             {forecast.map((day, i) => (
               <div
                 key={i}
-                className="bg-gray-50 rounded-xl p-3 text-center border-2 border-gray-200"
+                className={`rounded-xl p-4 text-center transition-all ${
+                  i === 0
+                    ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white border-2 border-orange-700 shadow-lg'
+                    : 'bg-white border-2 border-gray-300 hover:border-orange-400'
+                }`}
               >
-                <div className="text-sm font-semibold text-gray-700 mb-1">{day.dayName}</div>
-                <div className="text-3xl mb-2">{day.icon}</div>
-                <div className="text-xs text-gray-600 mb-2">{day.conditions}</div>
+                <div className={`text-sm font-bold mb-2 ${i === 0 ? 'text-white' : 'text-gray-700'}`}>
+                  {day.dayName}
+                </div>
+                <div className="text-4xl mb-2">{day.icon}</div>
+                <div className={`text-xs mb-3 ${i === 0 ? 'text-orange-100' : 'text-gray-600'}`}>
+                  {day.conditions}
+                </div>
                 <div className="space-y-1">
-                  <div className="text-sm font-bold text-gray-900">{day.tempHigh}°</div>
-                  <div className="text-xs text-gray-500">{day.tempLow}°</div>
+                  <div className={`text-2xl font-bold ${i === 0 ? 'text-white' : 'text-gray-900'}`}>
+                    {day.tempHigh}°
+                  </div>
+                  <div className={`text-sm ${i === 0 ? 'text-orange-200' : 'text-gray-500'}`}>
+                    {day.tempLow}°
+                  </div>
                 </div>
                 {day.precipChance > 0 && (
-                  <div className="text-xs text-blue-600 mt-1">{day.precipChance}%</div>
+                  <div className={`text-xs mt-2 font-semibold ${i === 0 ? 'text-blue-200' : 'text-blue-600'}`}>
+                    💧 {day.precipChance}%
+                  </div>
                 )}
               </div>
             ))}
@@ -210,63 +224,33 @@ export default function HubPage() {
             {/* Best Times */}
             <section className="bg-blue-50 rounded-2xl p-6 border-2 border-blue-200">
               <h3 className="text-xl font-bold text-gray-900 mb-3">Best Hunting Times</h3>
-              <p className="text-gray-700 whitespace-pre-line">{intel.bestTimes}</p>
+              <div className="text-gray-700 whitespace-pre-line leading-relaxed font-mono text-sm">
+                {intel.bestTimes}
+              </div>
             </section>
 
             {/* Tactics */}
-            <section>
+            <section className="bg-orange-50 rounded-2xl p-6 border-2 border-orange-200">
               <h3 className="text-xl font-bold text-gray-900 mb-3">Recommended Tactics</h3>
-              <p className="text-gray-700 whitespace-pre-line leading-relaxed">{intel.tactics}</p>
+              <div className="text-gray-700 whitespace-pre-line leading-relaxed">
+                {intel.tactics}
+              </div>
             </section>
 
             {/* Seasons */}
             <section className="bg-green-50 rounded-2xl p-6 border-2 border-green-200">
               <h3 className="text-xl font-bold text-gray-900 mb-3">Season Dates</h3>
-              {typeof intel.seasons === 'string' ? (
-                <p className="text-gray-700 whitespace-pre-line">{intel.seasons}</p>
-              ) : (
-                <div className="space-y-3">
-                  {Object.entries(intel.seasons).map(([species, seasons]: [string, any], i) => (
-                    <div key={i} className="bg-white rounded-lg p-3">
-                      <div className="font-semibold text-gray-900 mb-1">{species}</div>
-                      {typeof seasons === 'object' ? (
-                        <div className="text-sm text-gray-600 space-y-1">
-                          {Object.entries(seasons).map(([type, dates], j) => (
-                            <div key={j}>• {type}: {String(dates)}</div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-gray-600">{String(seasons)}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="text-gray-700 whitespace-pre-line leading-relaxed font-mono text-sm">
+                {typeof intel.seasons === 'string' ? intel.seasons : JSON.stringify(intel.seasons, null, 2)}
+              </div>
             </section>
 
             {/* Regulations */}
             <section className="bg-red-50 rounded-2xl p-6 border-2 border-red-200">
               <h3 className="text-xl font-bold text-gray-900 mb-3">Regulations & Rules</h3>
-              {typeof intel.regulations === 'string' ? (
-                <p className="text-gray-700 whitespace-pre-line text-sm">{intel.regulations}</p>
-              ) : (
-                <div className="space-y-3">
-                  {Object.entries(intel.regulations).map(([key, value]: [string, any], i) => (
-                    <div key={i} className="bg-white rounded-lg p-3">
-                      <div className="font-semibold text-gray-900 mb-1 text-sm">{key}</div>
-                      {typeof value === 'object' ? (
-                        <div className="text-xs text-gray-600 space-y-1">
-                          {Object.entries(value).map(([subKey, subValue], j) => (
-                            <div key={j}>• {subKey}: {String(subValue)}</div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-xs text-gray-600">{String(value)}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="text-gray-700 whitespace-pre-line leading-relaxed text-sm">
+                {typeof intel.regulations === 'string' ? intel.regulations : JSON.stringify(intel.regulations, null, 2)}
+              </div>
             </section>
           </>
         )}
