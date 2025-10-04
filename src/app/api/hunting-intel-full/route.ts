@@ -20,6 +20,10 @@ export async function POST(request: NextRequest) {
     // Format weather for GPT
     const weatherSummary = formatWeatherBrief(weatherData)
 
+    // Extract state from location name for regulations lookup
+    const locationParts = location.displayName.split(',')
+    const state = locationParts.length > 1 ? locationParts[locationParts.length - 1].trim() : ''
+
     // Generate comprehensive hunting intel
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -39,9 +43,17 @@ YOU MUST RETURN VALID JSON IN THIS EXACT FORMAT:
 }
 
 CRITICAL INSTRUCTIONS:
-1. **summary** (3-4 sentences): Hook with CURRENT CONDITIONS and BEST HUNTING WINDOWS for next 3 days. Reference today's weather specifically.
+1. **summary** (3-4 sentences):
+   - Start with hook about TODAY'S weather (${weatherSummary.split('\n')[0]})
+   - Mention best 2-3 hunting windows in next 3 days
+   - Reference specific conditions (pressure, temp, moon phase impact)
+   - End with actionable insight about what to focus on
 
-2. **species** (array): List 4-6 huntable game species for ${location.displayName} area. Focus on ${gameType}.
+2. **species** (array):
+   - List 5-8 ACTUAL huntable game species in ${location.displayName}, ${state}
+   - Focus on ${gameType} but include other legal game
+   - Only include species that are ACTUALLY hunted in this region
+   - Order by popularity/availability
 
 3. **bestTimes** (formatted text):
    Format like this:
@@ -67,6 +79,8 @@ CRITICAL INSTRUCTIONS:
    [2-3 sentences about stand placement, calling, gear]"
 
 5. **seasons** (formatted text):
+   Research ACTUAL ${state || location.displayName} hunting season dates for current year.
+   Format:
    "🦌 White-tailed Deer
    • Archery: Oct 1 - Nov 15
    • Firearm: Nov 16 - Dec 8
@@ -75,27 +89,34 @@ CRITICAL INSTRUCTIONS:
    🐻 Black Bear
    • Season: Sept 1 - Dec 31
 
-   [Continue for other species...]"
+   [Continue for ALL huntable species in this area...]"
 
 6. **regulations** (formatted text):
+   Research ACTUAL ${state || location.displayName} hunting regulations.
+   Include REAL license costs, bag limits, and weapon restrictions.
+   Format:
    "📋 LICENSE REQUIREMENTS
-   • Valid state hunting license required
-   • Deer permit: $XX.XX (antlered + antlerless)
+   • Valid ${state} hunting license: $XX
+   • Deer stamp: $XX (if required)
+   • [Other permits needed]
 
-   🎯 BAG LIMITS
-   • Deer: 1 antlered, 1 antlerless per season
-   • Bear: 1 per season
+   🎯 BAG LIMITS (${state} - Current Season)
+   • Deer: [actual limit]
+   • Bear: [actual limit]
+   • [Other species limits]
 
    ⏰ LEGAL HOURS
-   • 30 min before sunrise to 30 min after sunset
+   • [Actual hours for ${state}]
 
    🔫 WEAPONS
-   • Archery: Compound/recurve bows (40+ lb draw)
-   • Firearms: Shotgun slugs, rifles .22 caliber+
-   • Check local WMA restrictions"
+   • Archery: [${state} specific requirements]
+   • Firearms: [${state} specific requirements]
+   • Check ${state} DNR/Wildlife agency for updates"
 
-TONE: Confident, specific, formatted for readability. Use real data for ${location.displayName}.
-CURRENT DATE: ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`
+CRITICAL: Use your knowledge of ${state || location.displayName} hunting regulations. If uncertain, indicate to check with state wildlife agency.
+TONE: Confident but accurate. Cite real regulations.
+CURRENT DATE: ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+STATE: ${state || 'Unknown'}`
         },
         {
           role: 'user',
