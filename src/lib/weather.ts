@@ -76,95 +76,113 @@ export interface RawWeatherData {
 }
 
 /**
- * Fetch raw weather data using One Call API 3.0
- * Gets current + 48hr hourly + 7-day daily in ONE call
+ * Fetch raw weather data using FREE OpenWeather APIs
+ * Combines: Current Weather API + 5-Day Forecast API
  */
 export async function getWeatherData(lat: number, lon: number): Promise<RawWeatherData> {
   const API_KEY = process.env.OPENWEATHER_API_KEY || process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || 'demo'
 
   try {
-    // One Call API 3.0 - everything in one request
-    const response = await fetch(
-      `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&units=imperial&appid=${API_KEY}`
-    )
+    // Call both FREE APIs in parallel
+    const [currentResponse, forecastResponse] = await Promise.all([
+      fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${API_KEY}`),
+      fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=imperial&appid=${API_KEY}`)
+    ])
 
-    const data = await response.json()
+    const currentData = await currentResponse.json()
+    const forecastData = await forecastResponse.json()
 
-    if (data.cod && data.cod !== 200) {
-      throw new Error('Weather API error: ' + data.message)
+    if (currentData.cod && currentData.cod !== 200) {
+      throw new Error('Weather API error: ' + currentData.message)
     }
 
-    // Process hourly data (48 hours)
-    const hourlyData = (data.hourly || []).slice(0, 48).map((hour: any) => ({
-      timestamp: hour.dt,
-      temperature: Math.round(hour.temp),
-      feels_like: Math.round(hour.feels_like),
-      barometric_pressure: hour.pressure,
-      humidity: hour.humidity,
-      wind_speed: Math.round(hour.wind_speed),
-      wind_direction: degreesToCardinal(hour.wind_deg || 0),
-      conditions: hour.weather[0]?.main || 'Unknown',
-      description: hour.weather[0]?.description || 'Unknown',
-      precipitation_chance: hour.pop ? Math.round(hour.pop * 100) : 0,
-      precipitation_amount: hour.rain?.['1h'] ? hour.rain['1h'] / 25.4 : undefined // mm to inches
+    if (forecastData.cod && forecastData.cod !== '200') {
+      throw new Error('Forecast API error: ' + forecastData.message)
+    }
+
+    // Process 3-hour forecast data into hourly approximation (40 data points = 5 days)
+    const hourlyData = (forecastData.list || []).slice(0, 16).map((item: any) => ({
+      timestamp: item.dt,
+      temperature: Math.round(item.main.temp),
+      feels_like: Math.round(item.main.feels_like),
+      barometric_pressure: item.main.pressure,
+      humidity: item.main.humidity,
+      wind_speed: Math.round(item.wind.speed),
+      wind_direction: degreesToCardinal(item.wind.deg || 0),
+      conditions: item.weather[0]?.main || 'Unknown',
+      description: item.weather[0]?.description || 'Unknown',
+      precipitation_chance: item.pop ? Math.round(item.pop * 100) : 0,
+      precipitation_amount: item.rain?.['3h'] ? item.rain['3h'] / 25.4 : undefined // mm to inches
     }))
 
-    // Process daily data (7-8 days)
-    const dailyData = (data.daily || []).slice(0, 7).map((day: any) => ({
-      date: new Date(day.dt * 1000).toISOString().split('T')[0],
-      timestamp: day.dt,
-      temp_min: Math.round(day.temp.min),
-      temp_max: Math.round(day.temp.max),
-      temp_morning: Math.round(day.temp.morn),
-      temp_day: Math.round(day.temp.day),
-      temp_evening: Math.round(day.temp.eve),
-      temp_night: Math.round(day.temp.night),
-      barometric_pressure: day.pressure,
-      humidity: day.humidity,
-      wind_speed: Math.round(day.wind_speed),
-      wind_direction: degreesToCardinal(day.wind_deg || 0),
-      wind_gust: day.wind_gust ? Math.round(day.wind_gust) : undefined,
-      conditions: day.weather[0]?.main || 'Unknown',
-      description: day.weather[0]?.description || 'Unknown',
-      precipitation_chance: day.pop ? Math.round(day.pop * 100) : 0,
-      precipitation_amount: day.rain ? day.rain / 25.4 : undefined, // mm to inches
-      uvi: day.uvi || 0,
-      sunrise: day.sunrise,
-      sunset: day.sunset
-    }))
-
-    // Get location name via reverse geocoding (cached in most cases)
-    let locationName = 'Unknown'
-    try {
-      const geoResponse = await fetch(
-        `http://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${API_KEY}`
-      )
-      const geoData = await geoResponse.json()
-      if (geoData[0]) {
-        locationName = geoData[0].name || 'Unknown'
+    // Group forecast into daily data (5 days)
+    const dailyMap = new Map<string, any[]>()
+    forecastData.list.forEach((item: any) => {
+      const date = new Date(item.dt * 1000).toISOString().split('T')[0]
+      if (!dailyMap.has(date)) {
+        dailyMap.set(date, [])
       }
-    } catch (e) {
-      console.warn('Reverse geocoding failed, using coordinates')
-    }
+      dailyMap.get(date)!.push(item)
+    })
+
+    const dailyData = Array.from(dailyMap.entries()).slice(0, 7).map(([date, items]) => {
+      const temps = items.map((i: any) => i.main.temp)
+      const tempMin = Math.min(...temps)
+      const tempMax = Math.max(...temps)
+
+      // Get morning, day, evening, night temps (approximate by time of day)
+      const morningItem = items.find((i: any) => new Date(i.dt * 1000).getHours() >= 6 && new Date(i.dt * 1000).getHours() < 12) || items[0]
+      const dayItem = items.find((i: any) => new Date(i.dt * 1000).getHours() >= 12 && new Date(i.dt * 1000).getHours() < 18) || items[0]
+      const eveningItem = items.find((i: any) => new Date(i.dt * 1000).getHours() >= 18 && new Date(i.dt * 1000).getHours() < 24) || items[0]
+      const nightItem = items.find((i: any) => new Date(i.dt * 1000).getHours() >= 0 && new Date(i.dt * 1000).getHours() < 6) || items[0]
+
+      const firstItem = items[0]
+
+      return {
+        date,
+        timestamp: firstItem.dt,
+        temp_min: Math.round(tempMin),
+        temp_max: Math.round(tempMax),
+        temp_morning: Math.round(morningItem.main.temp),
+        temp_day: Math.round(dayItem.main.temp),
+        temp_evening: Math.round(eveningItem.main.temp),
+        temp_night: Math.round(nightItem.main.temp),
+        barometric_pressure: firstItem.main.pressure,
+        humidity: firstItem.main.humidity,
+        wind_speed: Math.round(firstItem.wind.speed),
+        wind_direction: degreesToCardinal(firstItem.wind.deg || 0),
+        wind_gust: firstItem.wind.gust ? Math.round(firstItem.wind.gust) : undefined,
+        conditions: firstItem.weather[0]?.main || 'Unknown',
+        description: firstItem.weather[0]?.description || 'Unknown',
+        precipitation_chance: Math.round(Math.max(...items.map((i: any) => i.pop || 0)) * 100),
+        precipitation_amount: items.reduce((sum: number, i: any) => sum + (i.rain?.['3h'] || 0), 0) / 25.4,
+        uvi: 0, // Not available in free API
+        sunrise: currentData.sys.sunrise,
+        sunset: currentData.sys.sunset
+      }
+    })
+
+    // Get location name from current weather data
+    const locationName = currentData.name || 'Unknown'
 
     return {
       current: {
-        temperature: Math.round(data.current.temp),
-        feels_like: Math.round(data.current.feels_like),
-        barometric_pressure: data.current.pressure,
-        humidity: data.current.humidity,
-        wind_speed: Math.round(data.current.wind_speed),
-        wind_direction: degreesToCardinal(data.current.wind_deg || 0),
-        wind_degrees: data.current.wind_deg || 0,
-        wind_gust: data.current.wind_gust ? Math.round(data.current.wind_gust) : undefined,
-        conditions: data.current.weather[0]?.main || 'Unknown',
-        description: data.current.weather[0]?.description || 'Unknown',
-        visibility: data.current.visibility || 0,
-        clouds: data.current.clouds || 0,
-        uvi: data.current.uvi || 0,
-        dew_point: Math.round(data.current.dew_point),
-        sunrise: data.current.sunrise,
-        sunset: data.current.sunset
+        temperature: Math.round(currentData.main.temp),
+        feels_like: Math.round(currentData.main.feels_like),
+        barometric_pressure: currentData.main.pressure,
+        humidity: currentData.main.humidity,
+        wind_speed: Math.round(currentData.wind.speed),
+        wind_direction: degreesToCardinal(currentData.wind.deg || 0),
+        wind_degrees: currentData.wind.deg || 0,
+        wind_gust: currentData.wind.gust ? Math.round(currentData.wind.gust) : undefined,
+        conditions: currentData.weather[0]?.main || 'Unknown',
+        description: currentData.weather[0]?.description || 'Unknown',
+        visibility: currentData.visibility || 0,
+        clouds: currentData.clouds?.all || 0,
+        uvi: 0, // Not available in free API
+        dew_point: Math.round(currentData.main.temp - ((100 - currentData.main.humidity) / 5)), // Approximation
+        sunrise: currentData.sys.sunrise,
+        sunset: currentData.sys.sunset
       },
       hourly: hourlyData,
       daily: dailyData,
@@ -172,7 +190,7 @@ export async function getWeatherData(lat: number, lon: number): Promise<RawWeath
         name: locationName,
         lat,
         lon,
-        timezone: data.timezone || 'UTC'
+        timezone: currentData.timezone ? `UTC${currentData.timezone >= 0 ? '+' : ''}${currentData.timezone / 3600}` : 'UTC'
       }
     }
 

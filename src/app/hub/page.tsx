@@ -26,8 +26,8 @@ interface HuntingIntel {
   species: string[]
   bestTimes: string
   tactics: string
-  seasons: string
-  regulations: string
+  seasons: string | any
+  regulations: string | any
 }
 
 export default function HubPage() {
@@ -222,13 +222,51 @@ export default function HubPage() {
             {/* Seasons */}
             <section className="bg-green-50 rounded-2xl p-6 border-2 border-green-200">
               <h3 className="text-xl font-bold text-gray-900 mb-3">Season Dates</h3>
-              <p className="text-gray-700 whitespace-pre-line">{intel.seasons}</p>
+              {typeof intel.seasons === 'string' ? (
+                <p className="text-gray-700 whitespace-pre-line">{intel.seasons}</p>
+              ) : (
+                <div className="space-y-3">
+                  {Object.entries(intel.seasons).map(([species, seasons]: [string, any], i) => (
+                    <div key={i} className="bg-white rounded-lg p-3">
+                      <div className="font-semibold text-gray-900 mb-1">{species}</div>
+                      {typeof seasons === 'object' ? (
+                        <div className="text-sm text-gray-600 space-y-1">
+                          {Object.entries(seasons).map(([type, dates], j) => (
+                            <div key={j}>• {type}: {String(dates)}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-600">{String(seasons)}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             {/* Regulations */}
             <section className="bg-red-50 rounded-2xl p-6 border-2 border-red-200">
               <h3 className="text-xl font-bold text-gray-900 mb-3">Regulations & Rules</h3>
-              <p className="text-gray-700 whitespace-pre-line text-sm">{intel.regulations}</p>
+              {typeof intel.regulations === 'string' ? (
+                <p className="text-gray-700 whitespace-pre-line text-sm">{intel.regulations}</p>
+              ) : (
+                <div className="space-y-3">
+                  {Object.entries(intel.regulations).map(([key, value]: [string, any], i) => (
+                    <div key={i} className="bg-white rounded-lg p-3">
+                      <div className="font-semibold text-gray-900 mb-1 text-sm">{key}</div>
+                      {typeof value === 'object' ? (
+                        <div className="text-xs text-gray-600 space-y-1">
+                          {Object.entries(value).map(([subKey, subValue], j) => (
+                            <div key={j}>• {subKey}: {String(subValue)}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-600">{String(value)}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
           </>
         )}
