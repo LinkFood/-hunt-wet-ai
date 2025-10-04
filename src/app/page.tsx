@@ -55,12 +55,49 @@ export default function Home() {
       async (position) => {
         const { latitude, longitude } = position.coords
         try {
+          // Use the geocoding API to get ZIP from coordinates
+          const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || ''
           const response = await fetch(
-            `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY}`
+            `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${apiKey}`
           )
           const data = await response.json()
-          if (data[0]?.zip_code) {
-            handleZipCodeSubmission(data[0].zip_code)
+
+          // OpenWeather reverse geocode doesn't return zip_code directly
+          // We need to use a different approach - get closest city and infer ZIP
+          if (data && data.length > 0 && data[0].name) {
+            // For now, use geocoding from the city/state to get a working ZIP
+            const location = data[0]
+            const zipResponse = await fetch(
+              `https://api.openweathermap.org/geo/1.0/zip?zip=${location.name},US&appid=${apiKey}`
+            )
+
+            // Fallback: Just use coordinates directly to get weather and infer location
+            // Better approach: use browser's geolocation to get approximate ZIP
+            const weatherResponse = await fetch(
+              `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`
+            )
+            const weatherData = await weatherResponse.json()
+
+            // Extract ZIP from weather data or use geocoder service
+            // For now, let's use a fallback geocoding service
+            const geocodeResponse = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+              {
+                headers: {
+                  'User-Agent': 'HuntWetAI/1.0'
+                }
+              }
+            )
+            const geocodeData = await geocodeResponse.json()
+
+            if (geocodeData?.address?.postcode) {
+              // Extract just the 5-digit ZIP
+              const zip = geocodeData.address.postcode.split('-')[0]
+              handleZipCodeSubmission(zip)
+              setGpsStatus('idle')
+            } else {
+              setGpsStatus('error')
+            }
           } else {
             setGpsStatus('error')
           }
@@ -75,7 +112,7 @@ export default function Home() {
       },
       {
         enableHighAccuracy: true,
-        timeout: 8000,
+        timeout: 10000,
         maximumAge: 60000
       }
     )
