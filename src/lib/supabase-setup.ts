@@ -3,18 +3,23 @@ import { supabase } from './supabase'
 
 export async function initializeDatabase() {
   try {
+    if (!supabase) {
+      console.warn('Supabase not configured')
+      return false
+    }
+
     console.log('Initializing Hunt Wet AI database...')
-    
+
     // Test connection
     const { error } = await supabase.from('users').select('count').limit(1)
     if (error && error.code === '42P01') {
       console.log('Tables do not exist yet. Need to run migrations.')
       return false
     }
-    
+
     console.log('Database connection successful!')
     return true
-    
+
   } catch (error) {
     console.error('Database initialization failed:', error)
     return false
@@ -41,6 +46,11 @@ export async function createHuntingSession(sessionData: {
   wind_speed_mph?: number
   wind_direction?: string
 }) {
+  if (!supabase) {
+    console.warn('Supabase not configured, skipping session logging')
+    return null
+  }
+
   const { data, error } = await supabase
     .from('hunting_sessions')
     .insert([{
@@ -85,6 +95,11 @@ export async function trackLocationSearch(locationData: {
   state_name?: string
   county?: string
 }) {
+  if (!supabase) {
+    console.warn('Supabase not configured, skipping location tracking')
+    return null
+  }
+
   // First, upsert the location
   const { data: location, error: locationError } = await supabase
     .from('locations')
@@ -144,6 +159,11 @@ export async function storeWeatherSnapshot(weatherData: {
   pressure_drop_24h?: number
   temp_drop_24h?: number
 }) {
+  if (!supabase) {
+    console.warn('Supabase not configured, skipping weather snapshot')
+    return null
+  }
+
   const { data, error } = await supabase
     .from('location_weather_history')
     .insert([weatherData])
@@ -159,6 +179,8 @@ export async function storeWeatherSnapshot(weatherData: {
 }
 
 export async function getSuccessPatterns(zipCode: string, gameType: string) {
+  if (!supabase) return []
+
   const { data, error } = await supabase
     .from('success_patterns')
     .select('*')
@@ -176,6 +198,8 @@ export async function getSuccessPatterns(zipCode: string, gameType: string) {
 }
 
 export async function updateHuntOutcome(sessionId: string, outcome: 'success' | 'no_success' | 'no_hunt', details?: object) {
+  if (!supabase) return null
+
   const { data, error } = await supabase
     .from('hunting_sessions')
     .update({ 
@@ -195,7 +219,9 @@ export async function updateHuntOutcome(sessionId: string, outcome: 'success' | 
 }
 
 export async function getZipCodeInfo(zipCode: string) {
-  const { data, error } = await supabase
+  if (!supabase) return null
+
+  const { data, error} = await supabase
     .from('zip_code_locations')
     .select('*')
     .eq('zip_code', zipCode)
@@ -209,6 +235,8 @@ export async function getZipCodeInfo(zipCode: string) {
 }
 
 export async function getHuntingRegulations(stateCode: string, gameType: string, huntDate?: string) {
+  if (!supabase) return []
+
   let query = supabase
     .from('hunting_regulations')
     .select('*')
