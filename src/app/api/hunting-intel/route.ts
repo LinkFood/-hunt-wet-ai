@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getWeatherForHunting } from '@/lib/weather'
+import { getWeatherByZip } from '@/lib/weather'
 import { getLunarData } from '@/lib/lunar'
 
 // Real-time hunting intelligence aggregator
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   try {
     // Parallel data fetching for speed
     const [weather, lunar, solunar, gameActivity, pressureIndex] = await Promise.all([
-      getWeatherForHunting(zipCode),
+      getWeatherByZip(zipCode),
       getLunarData(),
       getSolunarData(),
       getGameActivityIndex(gameType || 'big-game'),

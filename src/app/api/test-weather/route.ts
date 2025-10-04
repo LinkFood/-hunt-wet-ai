@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getWeatherForHunting, findPrimeHuntingDays } from '@/lib/weather'
+import { getWeatherByZip, formatWeatherForGPT } from '@/lib/weather'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const zipCode = searchParams.get('zip') || '12345'
 
   try {
-    const weatherData = await getWeatherForHunting(zipCode)
-    const primeHuntingDays = findPrimeHuntingDays(weatherData.forecast)
+    const weatherData = await getWeatherByZip(zipCode)
+    const formatted = formatWeatherForGPT(weatherData)
 
     return NextResponse.json({
       success: true,
       zipCode,
-      weather: weatherData,
-      primeHuntingDays,
-      message: 'Weather intelligence working!'
+      rawData: weatherData,
+      formattedForGPT: formatted,
+      message: 'Weather data fetcher working! (GPT does the reasoning)'
     })
 
   } catch (error) {

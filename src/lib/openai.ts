@@ -28,7 +28,7 @@
 
 import OpenAI from 'openai'
 import { createHuntingSession, getSuccessPatterns, getZipCodeInfo, getHuntingRegulations } from './supabase-setup'
-import { getWeatherForHunting, findPrimeHuntingDays } from './weather'
+import { getWeatherData, getWeatherByZip, formatWeatherForGPT, type RawWeatherData } from './weather'
 import { getSolunarDataForHunting, findOptimalHuntingDates } from './lunar'
 
 // Initialize OpenAI client with API key from environment variables
@@ -113,47 +113,30 @@ export async function getHuntingAdvice(context: HuntingContext): Promise<{advice
         )
       }
 
-      // Get real-time weather intelligence
+      // Get raw weather data (forecast = OpenWeather, reasoning = GPT)
       if (geoData && geoData.lat && geoData.lon) {
         try {
-          weatherData = await getWeatherForHunting(zipCode)
-        const primeHuntingDays = findPrimeHuntingDays(weatherData.forecast)
+          weatherData = await getWeatherData(geoData.lat, geoData.lon)
 
-        // Add weather intelligence to context
-        localIntel += `\n\nCURRENT WEATHER CONDITIONS:
-- Temperature: ${weatherData.current.temperature}°F
-- Barometric Pressure: ${weatherData.current.barometricPressure} mb
-- Wind: ${weatherData.current.windSpeed} mph ${weatherData.current.windDirection}
-- Conditions: ${weatherData.current.conditions}
-- Hunting Score: ${weatherData.current.huntingScore}/10
-- Recommendation: ${weatherData.current.recommendation}`
+          // Format weather data for GPT-4 to reason about
+          const weatherSummary = formatWeatherForGPT(weatherData)
+          localIntel += `\n\n${weatherSummary}`
 
-        if (primeHuntingDays.length > 0) {
-          localIntel += `\n\nPRIME HUNTING DAYS THIS WEEK:
-${primeHuntingDays.join('\n')}`
-        }
+          // Get lunar data (raw data only, GPT does reasoning)
+          try {
+            const today = new Date()
+            solunarData = await getSolunarDataForHunting(today, geoData.lat, geoData.lon)
 
-        // Get solunar/lunar data for enhanced predictions
-        try {
-          const today = new Date()
-          solunarData = await getSolunarDataForHunting(today, geoData.lat, geoData.lon)
-          const optimalHuntingDates = await findOptimalHuntingDates(geoData.lat, geoData.lon)
+            localIntel += `\n\nLUNAR CONDITIONS:
+- Moon Phase: ${solunarData.moonPhase.phase}
+- Illumination: ${solunarData.moonPhase.illumination}%
+- Major Activity Periods: ${solunarData.majorPeriods.join(', ')}
+- Minor Activity Periods: ${solunarData.minorPeriods.join(', ')}`
 
-          localIntel += `\n\nLUNAR & SOLUNAR CONDITIONS:
-- Moon Phase: ${solunarData.moonPhase.phase} (${solunarData.moonPhase.illumination}% illumination)
-- Solunar Score: ${solunarData.solunarScore}/10
-- Peak Activity Times: ${solunarData.majorPeriods.join(', ')}
-- Secondary Times: ${solunarData.minorPeriods.join(', ')}
-- Recommendation: ${solunarData.huntingRecommendation}`
-
-          if (optimalHuntingDates.length > 0) {
-            localIntel += `\n\nOPTIMAL LUNAR HUNTING DATES:
-${optimalHuntingDates.join('\n')}`
+          } catch (solunarError) {
+            console.error('Solunar API error:', solunarError)
+            localIntel += `\n\nLunar data temporarily unavailable`
           }
-        } catch (solunarError) {
-          console.error('Solunar API error:', solunarError)
-          localIntel += `\n\nSolunar data temporarily unavailable`
-        }
 
         } catch (weatherError) {
           console.error('Weather API error:', weatherError)
@@ -161,12 +144,14 @@ ${optimalHuntingDates.join('\n')}`
         }
       }
 
-      // Build local intelligence context
+      // Add historical success patterns (GPT will reason about them)
       if (successPatterns.length > 0) {
-        const topPattern = successPatterns[0]
-        localIntel += `\nLocal Intelligence for ${zipCode}:
-- Success rate in your area: ${topPattern.success_rate}% based on ${topPattern.total_hunts} hunts
-- Most successful conditions: ${JSON.stringify(topPattern.weather_pattern)}`
+        localIntel += `\n\nHISTORICAL SUCCESS PATTERNS (${zipCode}):\n`
+        successPatterns.slice(0, 3).forEach((pattern, i) => {
+          localIntel += `Pattern ${i + 1}:\n`
+          localIntel += `  Success Rate: ${pattern.success_rate}% (${pattern.successful_hunts}/${pattern.total_hunts} hunts)\n`
+          localIntel += `  Conditions: ${JSON.stringify(pattern.weather_pattern)}\n`
+        })
       }
 
       if (regulations.length > 0) {
@@ -178,54 +163,40 @@ ${optimalHuntingDates.join('\n')}`
       }
     }
 
-    const systemPrompt = `You are the AI hunting intelligence system for Hunt Wet AI. You are NOT a general hunting chatbot.
+    const systemPrompt = `You are the AI hunting intelligence system for Hunt Wet AI.
 
-YOUR CORE IDENTITY:
-- You are the hyper-local hunting guide for ZIP CODE ${zipCode}
-- You learn from every hunter interaction in this specific area
-- You provide ZIP-specific predictions, not general hunting advice
-- You remember and reference local patterns and success reports
+YOUR ROLE:
+- Hyper-local hunting guide for ${zipCode}
+- You analyze FORECAST data (from OpenWeather API)
+- You learn from HISTORICAL data (from logged hunt outcomes)
+- You combine forecast + history to make predictions
 
-YOUR MISSION:
-- Provide hyper-local hunting intelligence for ${zipCode} only
-- Learn from hunter success/failure reports to improve predictions
-- Focus on actionable, location-specific advice
-- Drive the learning flywheel: better data → better predictions → more hunters
+DATA SOURCES YOU HAVE:
+1. WEATHER FORECAST: Current conditions + 5-day forecast (temperature, pressure, wind, precipitation)
+2. LUNAR DATA: Moon phase, illumination, solunar periods
+3. HISTORICAL PATTERNS: Success rates from past hunts in this area (if available)
+4. REGULATIONS: Season dates, bag limits, legal hours
 
-RESPONSE APPROACH:
-- Always reference the specific ZIP code (${zipCode})
-- Mention local weather patterns affecting THIS area
-- Reference historical success data from THIS location when available
-- Ask for feedback to improve future predictions for this area
-- Encourage hunters to report back their results
+YOUR INTELLIGENCE STRATEGY:
+- OpenWeather tells you WHAT'S COMING (forecast)
+- Historical data tells you WHAT WORKED BEFORE (patterns)
+- YOU connect them: "Forecast shows cold front tomorrow. In ${zipCode}, hunters have 78% success rate during cold fronts (based on 23 logged hunts)."
 
-KEY PHRASES TO USE:
-- "In your ${zipCode} area..."
-- "Based on local ${zipCode} patterns..."
-- "Other hunters in ${zipCode} have reported..."
-- "Let me know how this works out so I can improve predictions for ${zipCode}"
+RESPONSE STYLE:
+- Talk like a hunting buddy around a campfire
+- Be specific about conditions: "That 29.92mb pressure + 15mph NE wind = prime morning hunt"
+- Reference historical patterns when available: "Last 5 times this happened in your area..."
+- Be honest about uncertainty: "Not enough historical data yet, but conditions look promising"
+- Always encourage outcome logging: "Report back how it goes so I can learn for next time"
 
-LEARNING FOCUS:
-- Always end with: "Report back your results so I can learn and improve predictions for other hunters in ${zipCode}"
-Always verify current regulations
+CRITICAL RULES:
+- NEVER calculate "hunting scores" - explain conditions and let the hunter decide
+- NEVER violate hunting laws - always remind to verify current regulations
+- NEVER make guarantees - hunting is unpredictable, you provide intelligence
 
-PERSONALITY:
-- Talk like you're around a campfire with hunting buddies
-- Use hunting terminology naturally
-- Share practical field experience
-- Be encouraging but honest about challenges
+TONE: Experienced, helpful, conversational - but always data-driven when historical patterns exist.
 
-EXPERTISE:
-- Game behavior and movement patterns
-- Weather impacts on hunting success
-- Moon phase effects on animal activity
-- Species-specific hunting strategies
-- Safety and ethical hunting practices
-- CRITICAL: Never give advice that violates hunting laws
-
-TONE: Conversational, experienced, helpful - like talking to a hunting buddy who knows his stuff.
-
-IMPORTANT: Always remind hunters to verify local regulations. Break up your response with plenty of line breaks.`
+IMPORTANT: Break up your response with plenty of line breaks for readability.`
 
     const userPrompt = `Current hunting context:
 ${context.zipCode ? `Location: ZIP ${context.zipCode}` : 'Location: Not specified'}
@@ -278,13 +249,13 @@ Please provide helpful hunting advice. If you have local success data, reference
         user_message: context.userMessage,
         ai_response: response,
         ai_confidence_score: successPatterns.length > 0 ? 85 : 65,
-        weather_data: context.weather,
+        weather_data: weatherData,
         moon_phase_data: context.moonPhase,
         // Extract weather metrics for data analysis
-        barometric_pressure: weatherData?.current?.barometricPressure,
+        barometric_pressure: weatherData?.current?.barometric_pressure,
         temperature_f: weatherData?.current?.temperature,
-        wind_speed_mph: weatherData?.current?.windSpeed,
-        wind_direction: weatherData?.current?.windDirection
+        wind_speed_mph: weatherData?.current?.wind_speed,
+        wind_direction: weatherData?.current?.wind_direction
       })
       sessionId = sessionData?.id
     } catch (dbError) {
