@@ -42,6 +42,8 @@ export const openai = new OpenAI({
  */
 export interface HuntingContext {
   zipCode?: string     // Geographic location for weather/conditions
+  latitude?: number    // Latitude (PRIMARY)
+  longitude?: number   // Longitude (PRIMARY)
   gameType?: string    // Type of animal being hunted (deer, elk, duck, etc.)
   huntDate?: string    // When the hunt is planned
   weather?: object     // Weather data (populated by weather.ts)
@@ -264,18 +266,25 @@ Please provide helpful hunting advice. If you have local success data, reference
       .replace(/\n{3,}/g, '\n\n')
       .trim()
 
-    // Log this interaction to our database for learning
+    // Log this interaction to our database for learning (DATA = MOAT)
     let sessionId: string | undefined
     try {
       const sessionData = await createHuntingSession({
+        latitude: context.latitude,
+        longitude: context.longitude,
         zip_code: zipCode,
         game_type: context.gameType,
         hunt_date: context.huntDate,
         user_message: context.userMessage,
         ai_response: response,
         ai_confidence_score: successPatterns.length > 0 ? 85 : 65,
-        weather_data: context.weather, // Now logging actual weather intelligence
-        moon_phase_data: context.moonPhase // Now logging actual lunar/solunar intelligence
+        weather_data: context.weather,
+        moon_phase_data: context.moonPhase,
+        // Extract weather metrics for data analysis
+        barometric_pressure: weatherData?.current?.barometricPressure,
+        temperature_f: weatherData?.current?.temperature,
+        wind_speed_mph: weatherData?.current?.windSpeed,
+        wind_direction: weatherData?.current?.windDirection
       })
       sessionId = sessionData?.id
     } catch (dbError) {

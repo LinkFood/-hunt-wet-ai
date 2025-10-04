@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Target, Cloud, Activity, Calendar, MapPin } from 'lucide-react'
 import HuntingChat from '@/components/HuntingChat'
 import { getQuickLocationName } from '@/lib/geocoding'
+import { trackLocationSearch } from '@/lib/supabase-setup'
 
 // Location model: lat/lon primary, ZIP/city for display
 interface HuntLocation {
@@ -41,6 +42,19 @@ export default function Home() {
     const finalGameType = gameType || 'big-game'
     setSelectedGameType(finalGameType)
     localStorage.setItem('huntWet_gameType', finalGameType)
+
+    // DATA COLLECTION: Track every location search
+    try {
+      await trackLocationSearch({
+        latitude: location.lat,
+        longitude: location.lon,
+        display_name: location.displayName,
+        display_zip: location.displayZip
+      })
+    } catch (error) {
+      console.error('Failed to track location search:', error)
+      // Don't block user experience if tracking fails
+    }
   }
 
   // Legacy ZIP submission handler (converts ZIP to lat/lon)

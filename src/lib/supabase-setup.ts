@@ -21,9 +21,12 @@ export async function initializeDatabase() {
   }
 }
 
-// Data insertion helpers
+// Data insertion helpers (UPDATED FOR LAT/LON)
 export async function createHuntingSession(sessionData: {
   user_id?: string
+  session_fingerprint?: string
+  latitude?: number
+  longitude?: number
   zip_code: string
   game_type?: string
   hunt_date?: string
@@ -33,11 +36,18 @@ export async function createHuntingSession(sessionData: {
   ai_confidence_score?: number
   weather_data?: object
   moon_phase_data?: object
+  barometric_pressure?: number
+  temperature_f?: number
+  wind_speed_mph?: number
+  wind_direction?: string
 }) {
   const { data, error } = await supabase
     .from('hunting_sessions')
     .insert([{
       user_id: sessionData.user_id || null,
+      session_fingerprint: sessionData.session_fingerprint || null,
+      latitude: sessionData.latitude,
+      longitude: sessionData.longitude,
       zip_code: sessionData.zip_code,
       game_type: sessionData.game_type,
       hunt_date: sessionData.hunt_date,
@@ -47,6 +57,10 @@ export async function createHuntingSession(sessionData: {
       ai_confidence_score: sessionData.ai_confidence_score || 75,
       weather_data: sessionData.weather_data,
       moon_phase_data: sessionData.moon_phase_data,
+      barometric_pressure: sessionData.barometric_pressure,
+      temperature_f: sessionData.temperature_f,
+      wind_speed_mph: sessionData.wind_speed_mph,
+      wind_direction: sessionData.wind_direction,
       regulations_checked: false
     }])
     .select()
@@ -55,6 +69,90 @@ export async function createHuntingSession(sessionData: {
   if (error) {
     console.error('Error creating hunting session:', error)
     throw error
+  }
+
+  return data
+}
+
+// TRACK LOCATION SEARCHES (DATA COLLECTION)
+export async function trackLocationSearch(locationData: {
+  latitude: number
+  longitude: number
+  display_name: string
+  display_zip?: string
+  city?: string
+  state_code?: string
+  state_name?: string
+  county?: string
+}) {
+  // First, upsert the location
+  const { data: location, error: locationError } = await supabase
+    .from('locations')
+    .upsert({
+      latitude: locationData.latitude,
+      longitude: locationData.longitude,
+      display_name: locationData.display_name,
+      display_zip: locationData.display_zip,
+      city: locationData.city,
+      state_code: locationData.state_code,
+      state_name: locationData.state_name,
+      county: locationData.county,
+      last_searched_at: new Date().toISOString()
+    }, {
+      onConflict: 'latitude,longitude',
+      ignoreDuplicates: false
+    })
+    .select()
+    .single()
+
+  if (locationError) {
+    console.error('Error tracking location:', locationError)
+    return null
+  }
+
+  // Increment search count
+  const { error: updateError } = await supabase
+    .from('locations')
+    .update({
+      search_count: (location?.search_count || 0) + 1,
+      last_searched_at: new Date().toISOString()
+    })
+    .eq('id', location.id)
+
+  if (updateError) {
+    console.error('Error updating search count:', updateError)
+  }
+
+  return location
+}
+
+// STORE WEATHER SNAPSHOTS (HISTORICAL DATA COLLECTION)
+export async function storeWeatherSnapshot(weatherData: {
+  latitude: number
+  longitude: number
+  location_id?: string
+  temperature_f: number
+  feels_like_f?: number
+  barometric_pressure: number
+  pressure_trend?: string
+  humidity?: number
+  wind_speed_mph: number
+  wind_direction: string
+  conditions: string
+  cold_front?: boolean
+  warm_front?: boolean
+  pressure_drop_24h?: number
+  temp_drop_24h?: number
+}) {
+  const { data, error } = await supabase
+    .from('location_weather_history')
+    .insert([weatherData])
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error storing weather snapshot:', error)
+    return null
   }
 
   return data
