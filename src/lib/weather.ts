@@ -1,21 +1,18 @@
 /**
  * Weather Data Fetcher for Hunt Wet AI
  *
- * PHILOSOPHY: This file ONLY fetches raw weather data from OpenWeather API
+ * UPGRADED: Using OpenWeather One Call API 3.0
+ * - 7-day daily forecast
+ * - 48-hour hourly forecast
+ * - Current conditions + feels like
+ * - Pressure trends
+ * - Better precipitation data
+ *
+ * PHILOSOPHY: This file ONLY fetches raw weather data
  * ALL REASONING/INTELLIGENCE is handled by GPT-4
- *
- * Use Cases:
- * 1. Fetch current weather conditions (temp, pressure, wind)
- * 2. Fetch 5-day forecast data
- * 3. Provide radar/map data (if needed for visual display)
- *
- * What this DOES NOT do:
- * - Calculate "hunting scores" (GPT-4 does this)
- * - Generate recommendations (GPT-4 does this)
- * - Interpret weather patterns (GPT-4 does this)
  */
 
-// Raw weather data from OpenWeather API
+// Raw weather data from OpenWeather One Call API 3.0
 export interface RawWeatherData {
   current: {
     temperature: number        // Fahrenheit
@@ -25,82 +22,157 @@ export interface RawWeatherData {
     wind_speed: number         // MPH
     wind_direction: string     // Cardinal direction (N, NE, etc.)
     wind_degrees: number       // 0-360
+    wind_gust?: number        // Wind gusts MPH
     conditions: string         // "Clear", "Clouds", "Rain", etc.
     description: string        // "scattered clouds", "light rain", etc.
     visibility: number         // Meters
     clouds: number            // Cloud cover percentage
+    uvi: number               // UV index
+    dew_point: number         // Fahrenheit
+    sunrise: number           // Unix timestamp
+    sunset: number            // Unix timestamp
   }
-  forecast: Array<{
-    date: string              // ISO date string
+  hourly: Array<{
     timestamp: number         // Unix timestamp
-    temperature: number       // Fahrenheit
-    temp_min: number         // Fahrenheit
-    temp_max: number         // Fahrenheit
+    temperature: number
+    feels_like: number
     barometric_pressure: number
     humidity: number
     wind_speed: number
     wind_direction: string
     conditions: string
     description: string
-    precipitation_chance?: number // Percentage (if available)
+    precipitation_chance: number  // 0-100
+    precipitation_amount?: number // inches
+  }>
+  daily: Array<{
+    date: string              // ISO date string
+    timestamp: number         // Unix timestamp
+    temp_min: number         // Fahrenheit
+    temp_max: number         // Fahrenheit
+    temp_morning: number
+    temp_day: number
+    temp_evening: number
+    temp_night: number
+    barometric_pressure: number
+    humidity: number
+    wind_speed: number
+    wind_direction: string
+    wind_gust?: number
+    conditions: string
+    description: string
+    precipitation_chance: number  // 0-100
+    precipitation_amount?: number // inches
+    uvi: number
+    sunrise: number
+    sunset: number
   }>
   location: {
     name: string
     lat: number
     lon: number
+    timezone: string
   }
 }
 
 /**
- * Fetch raw weather data for a location
- * NO SCORING, NO INTERPRETATION - just data
+ * Fetch raw weather data using One Call API 3.0
+ * Gets current + 48hr hourly + 7-day daily in ONE call
  */
 export async function getWeatherData(lat: number, lon: number): Promise<RawWeatherData> {
-  const API_KEY = process.env.OPENWEATHER_API_KEY || 'demo'
+  const API_KEY = process.env.OPENWEATHER_API_KEY || process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || 'demo'
 
   try {
-    // Fetch current weather
-    const currentResponse = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${API_KEY}`
+    // One Call API 3.0 - everything in one request
+    const response = await fetch(
+      `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&units=imperial&appid=${API_KEY}`
     )
-    const currentData = await currentResponse.json()
 
-    if (currentData.cod !== 200) {
-      throw new Error('Weather API error: ' + currentData.message)
+    const data = await response.json()
+
+    if (data.cod && data.cod !== 200) {
+      throw new Error('Weather API error: ' + data.message)
     }
 
-    // Fetch 5-day forecast (every 3 hours)
-    const forecastResponse = await fetch(
-      `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=imperial&appid=${API_KEY}`
-    )
-    const forecastData = await forecastResponse.json()
+    // Process hourly data (48 hours)
+    const hourlyData = (data.hourly || []).slice(0, 48).map((hour: any) => ({
+      timestamp: hour.dt,
+      temperature: Math.round(hour.temp),
+      feels_like: Math.round(hour.feels_like),
+      barometric_pressure: hour.pressure,
+      humidity: hour.humidity,
+      wind_speed: Math.round(hour.wind_speed),
+      wind_direction: degreesToCardinal(hour.wind_deg || 0),
+      conditions: hour.weather[0]?.main || 'Unknown',
+      description: hour.weather[0]?.description || 'Unknown',
+      precipitation_chance: hour.pop ? Math.round(hour.pop * 100) : 0,
+      precipitation_amount: hour.rain?.['1h'] ? hour.rain['1h'] / 25.4 : undefined // mm to inches
+    }))
 
-    if (forecastData.cod !== '200') {
-      throw new Error('Forecast API error: ' + forecastData.message)
+    // Process daily data (7-8 days)
+    const dailyData = (data.daily || []).slice(0, 7).map((day: any) => ({
+      date: new Date(day.dt * 1000).toISOString().split('T')[0],
+      timestamp: day.dt,
+      temp_min: Math.round(day.temp.min),
+      temp_max: Math.round(day.temp.max),
+      temp_morning: Math.round(day.temp.morn),
+      temp_day: Math.round(day.temp.day),
+      temp_evening: Math.round(day.temp.eve),
+      temp_night: Math.round(day.temp.night),
+      barometric_pressure: day.pressure,
+      humidity: day.humidity,
+      wind_speed: Math.round(day.wind_speed),
+      wind_direction: degreesToCardinal(day.wind_deg || 0),
+      wind_gust: day.wind_gust ? Math.round(day.wind_gust) : undefined,
+      conditions: day.weather[0]?.main || 'Unknown',
+      description: day.weather[0]?.description || 'Unknown',
+      precipitation_chance: day.pop ? Math.round(day.pop * 100) : 0,
+      precipitation_amount: day.rain ? day.rain / 25.4 : undefined, // mm to inches
+      uvi: day.uvi || 0,
+      sunrise: day.sunrise,
+      sunset: day.sunset
+    }))
+
+    // Get location name via reverse geocoding (cached in most cases)
+    let locationName = 'Unknown'
+    try {
+      const geoResponse = await fetch(
+        `http://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${API_KEY}`
+      )
+      const geoData = await geoResponse.json()
+      if (geoData[0]) {
+        locationName = geoData[0].name || 'Unknown'
+      }
+    } catch (e) {
+      console.warn('Reverse geocoding failed, using coordinates')
     }
-
-    // Process forecast into daily summaries (simpler for GPT-4)
-    const dailyForecasts = processToDailyForecast(forecastData.list)
 
     return {
       current: {
-        temperature: Math.round(currentData.main.temp),
-        feels_like: Math.round(currentData.main.feels_like),
-        barometric_pressure: currentData.main.pressure,
-        humidity: currentData.main.humidity,
-        wind_speed: Math.round(currentData.wind?.speed || 0),
-        wind_direction: degreesToCardinal(currentData.wind?.deg || 0),
-        wind_degrees: currentData.wind?.deg || 0,
-        conditions: currentData.weather[0]?.main || 'Unknown',
-        description: currentData.weather[0]?.description || 'Unknown',
-        visibility: currentData.visibility || 0,
-        clouds: currentData.clouds?.all || 0
+        temperature: Math.round(data.current.temp),
+        feels_like: Math.round(data.current.feels_like),
+        barometric_pressure: data.current.pressure,
+        humidity: data.current.humidity,
+        wind_speed: Math.round(data.current.wind_speed),
+        wind_direction: degreesToCardinal(data.current.wind_deg || 0),
+        wind_degrees: data.current.wind_deg || 0,
+        wind_gust: data.current.wind_gust ? Math.round(data.current.wind_gust) : undefined,
+        conditions: data.current.weather[0]?.main || 'Unknown',
+        description: data.current.weather[0]?.description || 'Unknown',
+        visibility: data.current.visibility || 0,
+        clouds: data.current.clouds || 0,
+        uvi: data.current.uvi || 0,
+        dew_point: Math.round(data.current.dew_point),
+        sunrise: data.current.sunrise,
+        sunset: data.current.sunset
       },
-      forecast: dailyForecasts,
+      hourly: hourlyData,
+      daily: dailyData,
       location: {
-        name: currentData.name || 'Unknown',
+        name: locationName,
         lat,
-        lon
+        lon,
+        timezone: data.timezone || 'UTC'
       }
     }
 
@@ -138,55 +210,6 @@ export async function getWeatherByZip(zipCode: string): Promise<RawWeatherData> 
 }
 
 /**
- * Process hourly forecast data into daily summaries
- * Takes 40 forecast points (every 3 hours for 5 days)
- * Returns 5 daily summaries (using midday data as representative)
- */
-function processToDailyForecast(hourlyData: any[]): RawWeatherData['forecast'] {
-  const dailyMap = new Map<string, any[]>()
-
-  // Group by date
-  hourlyData.forEach(item => {
-    const date = new Date(item.dt * 1000).toISOString().split('T')[0]
-    if (!dailyMap.has(date)) {
-      dailyMap.set(date, [])
-    }
-    dailyMap.get(date)!.push(item)
-  })
-
-  // Create daily summaries
-  const dailyForecasts: RawWeatherData['forecast'] = []
-
-  dailyMap.forEach((hours, date) => {
-    // Use midday data (around noon) as representative
-    const middayIndex = Math.floor(hours.length / 2)
-    const dayData = hours[middayIndex]
-
-    // Find min/max temps for the day
-    const temps = hours.map(h => h.main.temp)
-    const temp_min = Math.round(Math.min(...temps))
-    const temp_max = Math.round(Math.max(...temps))
-
-    dailyForecasts.push({
-      date,
-      timestamp: dayData.dt,
-      temperature: Math.round(dayData.main.temp),
-      temp_min,
-      temp_max,
-      barometric_pressure: dayData.main.pressure,
-      humidity: dayData.main.humidity,
-      wind_speed: Math.round(dayData.wind?.speed || 0),
-      wind_direction: degreesToCardinal(dayData.wind?.deg || 0),
-      conditions: dayData.weather[0]?.main || 'Unknown',
-      description: dayData.weather[0]?.description || 'Unknown',
-      precipitation_chance: dayData.pop ? Math.round(dayData.pop * 100) : undefined
-    })
-  })
-
-  return dailyForecasts.slice(0, 5) // Return 5 days
-}
-
-/**
  * Convert wind degrees to cardinal direction
  * 0° = N, 90° = E, 180° = S, 270° = W
  */
@@ -210,28 +233,54 @@ export function getRadarMapUrl(lat: number, lon: number, zoom: number = 10): str
 /**
  * Format weather data for GPT-4 consumption
  * Returns a clean string summary that GPT can reason about
+ * NOW WITH: 7-day forecast, hourly trends, sunrise/sunset, pressure trends
  */
 export function formatWeatherForGPT(weather: RawWeatherData): string {
-  const { current, forecast } = weather
+  const { current, hourly, daily, location } = weather
 
-  let summary = `CURRENT CONDITIONS (${weather.location.name}):\n`
+  let summary = `CURRENT CONDITIONS (${location.name}):\n`
   summary += `Temperature: ${current.temperature}°F (feels like ${current.feels_like}°F)\n`
   summary += `Barometric Pressure: ${current.barometric_pressure} mb\n`
-  summary += `Wind: ${current.wind_speed} mph from ${current.wind_direction}\n`
+  summary += `Wind: ${current.wind_speed} mph from ${current.wind_direction}`
+  if (current.wind_gust) summary += ` (gusts ${current.wind_gust} mph)`
+  summary += `\n`
   summary += `Humidity: ${current.humidity}%\n`
+  summary += `Dew Point: ${current.dew_point}°F\n`
   summary += `Conditions: ${current.description}\n`
-  summary += `Cloud Cover: ${current.clouds}%\n\n`
+  summary += `Cloud Cover: ${current.clouds}%\n`
+  summary += `UV Index: ${current.uvi}\n`
+  summary += `Visibility: ${Math.round(current.visibility * 0.000621371)} miles\n\n`
 
-  summary += `5-DAY FORECAST:\n`
-  forecast.forEach((day, i) => {
-    summary += `Day ${i + 1} (${day.date}):\n`
-    summary += `  Temp: ${day.temp_min}°F - ${day.temp_max}°F\n`
+  // Pressure trend analysis (next 12 hours)
+  summary += `PRESSURE TREND (Next 12 Hours):\n`
+  const pressureTrend = hourly.slice(0, 12).map((h, i) =>
+    `  ${i * 1}hr: ${h.barometric_pressure} mb`
+  ).join('\n')
+  summary += pressureTrend + '\n\n'
+
+  // Next 24 hours hourly (critical for hunting timing)
+  summary += `HOURLY FORECAST (Next 24 Hours):\n`
+  hourly.slice(0, 24).forEach((hour, i) => {
+    const time = new Date(hour.timestamp * 1000).toLocaleTimeString('en-US', { hour: 'numeric', hour12: true })
+    summary += `  ${time}: ${hour.temperature}°F, ${hour.barometric_pressure}mb, ${hour.wind_speed}mph ${hour.wind_direction}, ${hour.description}`
+    if (hour.precipitation_chance > 0) summary += `, ${hour.precipitation_chance}% precip`
+    summary += `\n`
+  })
+  summary += `\n`
+
+  // 7-day daily forecast
+  summary += `7-DAY FORECAST:\n`
+  daily.forEach((day, i) => {
+    const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : new Date(day.timestamp * 1000).toLocaleDateString('en-US', { weekday: 'long' })
+    summary += `${dayName} (${day.date}):\n`
+    summary += `  Temps: ${day.temp_min}°F - ${day.temp_max}°F (Morning: ${day.temp_morning}°F, Day: ${day.temp_day}°F, Evening: ${day.temp_evening}°F)\n`
     summary += `  Pressure: ${day.barometric_pressure} mb\n`
-    summary += `  Wind: ${day.wind_speed} mph ${day.wind_direction}\n`
+    summary += `  Wind: ${day.wind_speed} mph ${day.wind_direction}`
+    if (day.wind_gust) summary += ` (gusts ${day.wind_gust} mph)`
+    summary += `\n`
     summary += `  Conditions: ${day.description}\n`
-    if (day.precipitation_chance) {
-      summary += `  Precipitation: ${day.precipitation_chance}%\n`
-    }
+    summary += `  Precipitation: ${day.precipitation_chance}%\n`
+    summary += `  Sunrise: ${new Date(day.sunrise * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}, Sunset: ${new Date(day.sunset * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}\n`
     summary += `\n`
   })
 
