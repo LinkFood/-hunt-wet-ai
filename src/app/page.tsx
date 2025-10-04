@@ -5,34 +5,68 @@ import { Target, Cloud, Activity, Calendar, MapPin } from 'lucide-react'
 import HuntingChat from '@/components/HuntingChat'
 import { getQuickLocationName } from '@/lib/geocoding'
 
+// Location model: lat/lon primary, ZIP/city for display
+interface HuntLocation {
+  lat: number
+  lon: number
+  displayName: string
+  displayZip: string
+}
+
 export default function Home() {
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null)
-  const [zipCode, setZipCode] = useState('')
-  const [locationName, setLocationName] = useState('')
-  const [hasZipCode, setHasZipCode] = useState(false)
+  const [location, setLocation] = useState<HuntLocation | null>(null)
   const [activeTab, setActiveTab] = useState(0) // 0=Chat, 1=Weather, 2=Intel, 3=Regs
 
   // Load saved data on mount
   useEffect(() => {
-    const savedZip = localStorage.getItem('huntWet_zipCode')
+    const savedLocation = localStorage.getItem('huntWet_location')
     const savedGame = localStorage.getItem('huntWet_gameType')
-    if (savedZip) {
-      setZipCode(savedZip)
-      setLocationName(getQuickLocationName(savedZip))
-      setHasZipCode(true)
-      setSelectedGameType(savedGame || 'big-game')
+    if (savedLocation) {
+      try {
+        const parsedLocation = JSON.parse(savedLocation) as HuntLocation
+        setLocation(parsedLocation)
+        setSelectedGameType(savedGame || 'big-game')
+      } catch (error) {
+        console.error('Error parsing saved location:', error)
+        localStorage.removeItem('huntWet_location')
+      }
     }
   }, [])
 
-  const handleZipCodeSubmission = (zip: string, gameType?: string) => {
-    setZipCode(zip)
-    setLocationName(getQuickLocationName(zip))
-    setHasZipCode(true)
-    localStorage.setItem('huntWet_zipCode', zip)
+  const handleLocationSubmission = async (location: HuntLocation, gameType?: string) => {
+    setLocation(location)
+    localStorage.setItem('huntWet_location', JSON.stringify(location))
 
     const finalGameType = gameType || 'big-game'
     setSelectedGameType(finalGameType)
     localStorage.setItem('huntWet_gameType', finalGameType)
+  }
+
+  // Legacy ZIP submission handler (converts ZIP to lat/lon)
+  const handleZipCodeSubmission = async (zip: string, gameType?: string) => {
+    try {
+      // Convert ZIP to lat/lon using geocoding
+      const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || ''
+      const response = await fetch(
+        `https://api.openweathermap.org/geo/1.0/zip?zip=${zip},US&appid=${apiKey}`
+      )
+      const data = await response.json()
+
+      if (data.lat && data.lon) {
+        const newLocation: HuntLocation = {
+          lat: data.lat,
+          lon: data.lon,
+          displayName: data.name || getQuickLocationName(zip),
+          displayZip: zip
+        }
+        handleLocationSubmission(newLocation, gameType)
+      } else {
+        console.error('Could not geocode ZIP:', zip)
+      }
+    } catch (error) {
+      console.error('Error geocoding ZIP:', error)
+    }
   }
 
   const handleGameTypeChange = (gameType: string) => {
@@ -55,54 +89,38 @@ export default function Home() {
       async (position) => {
         const { latitude, longitude } = position.coords
         try {
-          // Use the geocoding API to get ZIP from coordinates
-          const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || ''
-          const response = await fetch(
-            `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${apiKey}`
-          )
-          const data = await response.json()
-
-          // OpenWeather reverse geocode doesn't return zip_code directly
-          // We need to use a different approach - get closest city and infer ZIP
-          if (data && data.length > 0 && data[0].name) {
-            // For now, use geocoding from the city/state to get a working ZIP
-            const location = data[0]
-            const zipResponse = await fetch(
-              `https://api.openweathermap.org/geo/1.0/zip?zip=${location.name},US&appid=${apiKey}`
-            )
-
-            // Fallback: Just use coordinates directly to get weather and infer location
-            // Better approach: use browser's geolocation to get approximate ZIP
-            const weatherResponse = await fetch(
-              `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`
-            )
-            const weatherData = await weatherResponse.json()
-
-            // Extract ZIP from weather data or use geocoder service
-            // For now, let's use a fallback geocoding service
-            const geocodeResponse = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-              {
-                headers: {
-                  'User-Agent': 'HuntWetAI/1.0'
-                }
+          // Use OpenStreetMap Nominatim to get location details
+          const geocodeResponse = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+            {
+              headers: {
+                'User-Agent': 'HuntWetAI/1.0'
               }
-            )
-            const geocodeData = await geocodeResponse.json()
-
-            if (geocodeData?.address?.postcode) {
-              // Extract just the 5-digit ZIP
-              const zip = geocodeData.address.postcode.split('-')[0]
-              handleZipCodeSubmission(zip)
-              setGpsStatus('idle')
-            } else {
-              setGpsStatus('error')
             }
+          )
+          const geocodeData = await geocodeResponse.json()
+
+          if (geocodeData?.address) {
+            const address = geocodeData.address
+            // Extract ZIP and create location object
+            const zip = address.postcode?.split('-')[0] || ''
+            const city = address.city || address.town || address.village || ''
+            const state = address.state || ''
+
+            const newLocation: HuntLocation = {
+              lat: latitude,
+              lon: longitude,
+              displayName: city && state ? `${city}, ${state}` : geocodeData.display_name,
+              displayZip: zip
+            }
+
+            handleLocationSubmission(newLocation)
+            setGpsStatus('idle')
           } else {
             setGpsStatus('error')
           }
         } catch (error) {
-          console.error('Error getting ZIP from GPS:', error)
+          console.error('Error getting location from GPS:', error)
           setGpsStatus('error')
         }
       },
@@ -118,7 +136,7 @@ export default function Home() {
     )
   }
 
-  if (!hasZipCode) {
+  if (!location) {
     return (
       <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
         {/* Mobile Onboarding */}
@@ -201,16 +219,14 @@ export default function Home() {
             <div>
               <h1 className="text-xl font-bold text-orange-400">HUNT WET AI</h1>
               <p className="text-xs text-gray-400">
-                {locationName} • Learning patterns
+                {location.displayName} • Learning patterns
               </p>
             </div>
           </div>
           <button
             onClick={() => {
               localStorage.clear()
-              setHasZipCode(false)
-              setZipCode('')
-              setLocationName('')
+              setLocation(null)
             }}
             className="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-xs transition-colors"
           >
@@ -251,7 +267,7 @@ export default function Home() {
           <div className="h-full flex flex-col p-4">
             <HuntingChat
               hasZipCode={true}
-              zipCode={zipCode}
+              zipCode={location.displayZip}
               gameType={selectedGameType}
               onZipCodeSubmission={handleZipCodeSubmission}
               onGameTypeChange={handleGameTypeChange}
@@ -267,7 +283,7 @@ export default function Home() {
                 <div className="w-3 h-3 bg-red-400 rounded-full animate-pulse"></div>
                 <span className="text-red-400 font-bold text-sm">COLD FRONT ALERT</span>
               </div>
-              <div className="text-gray-200 mb-2">Hits {locationName} at 3:00 AM tomorrow</div>
+              <div className="text-gray-200 mb-2">Hits {location.displayName} at 3:00 AM tomorrow</div>
               <div className="text-red-400 font-bold text-lg">85% movement increase expected</div>
             </div>
 
@@ -379,7 +395,7 @@ export default function Home() {
       {/* Mobile Footer */}
       <div className="bg-gray-800 border-t border-gray-700 px-4 py-3 flex-shrink-0">
         <div className="text-center">
-          <p className="text-xs text-gray-500">Hunt Wet AI • Learning {locationName} patterns</p>
+          <p className="text-xs text-gray-500">Hunt Wet AI • Learning {location.displayName} patterns</p>
         </div>
       </div>
     </div>

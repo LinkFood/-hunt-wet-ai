@@ -26,8 +26,8 @@ export default function LoginPage() {
         // Set auth cookie and redirect
         document.cookie = `hunt-wet-auth=${password}; path=/; max-age=2592000; secure; samesite=strict`
 
-        // Clear any existing location data to force ZIP onboarding for new session
-        localStorage.removeItem('huntWet_zipCode')
+        // Clear any existing location data to force location onboarding for new session
+        localStorage.removeItem('huntWet_location')
         localStorage.removeItem('huntWet_gameType')
 
         router.push('/')
