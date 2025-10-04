@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Target, Cloud, Activity, Calendar, MapPin } from 'lucide-react'
+import { Target, Cloud, Activity, Calendar, MapPin, MessageSquare } from 'lucide-react'
 import HuntingChat from '@/components/HuntingChat'
+import InformationHub from '@/components/InformationHub'
 import { getQuickLocationName } from '@/lib/geocoding'
 import { trackLocationSearch } from '@/lib/supabase-setup'
 
@@ -253,10 +254,8 @@ export default function Home() {
       <div className="bg-gray-800 border-b border-gray-700 px-4 flex-shrink-0">
         <div className="flex">
           {[
-            { name: 'Chat', icon: Target },
-            { name: 'Weather', icon: Cloud },
-            { name: 'Intel', icon: Activity },
-            { name: 'Regs', icon: Calendar }
+            { name: 'Hub', icon: Activity },
+            { name: 'Chat', icon: MessageSquare }
           ].map((tab, index) => (
             <button
               key={tab.name}
@@ -276,8 +275,15 @@ export default function Home() {
 
       {/* Mobile Content */}
       <div className="flex-1 bg-gray-900 overflow-hidden">
-        {/* Tab 0: Chat */}
+        {/* Tab 0: Information Hub */}
         {activeTab === 0 && (
+          <div className="h-full overflow-y-auto p-4">
+            <InformationHub location={location} gameType={selectedGameType} />
+          </div>
+        )}
+
+        {/* Tab 1: Chat */}
+        {activeTab === 1 && (
           <div className="h-full flex flex-col p-4">
             <HuntingChat
               hasZipCode={true}
@@ -286,122 +292,6 @@ export default function Home() {
               onZipCodeSubmission={handleZipCodeSubmission}
               onGameTypeChange={handleGameTypeChange}
             />
-          </div>
-        )}
-
-        {/* Tab 1: Weather */}
-        {activeTab === 1 && (
-          <div className="p-4 space-y-4 overflow-y-auto h-full">
-            <div className="bg-red-600/10 border border-red-600/30 rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-3">
-                <div className="w-3 h-3 bg-red-400 rounded-full animate-pulse"></div>
-                <span className="text-red-400 font-bold text-sm">COLD FRONT ALERT</span>
-              </div>
-              <div className="text-gray-200 mb-2">Hits {location.displayName} at 3:00 AM tomorrow</div>
-              <div className="text-red-400 font-bold text-lg">85% movement increase expected</div>
-            </div>
-
-            <div className="bg-yellow-600/10 border border-yellow-600/30 rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-3">
-                <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
-                <span className="text-yellow-400 font-bold text-sm">PRESSURE DROP</span>
-              </div>
-              <div className="text-gray-200 mb-2">Falling 0.15" per hour</div>
-              <div className="text-yellow-400 font-bold text-lg">Prime hunting conditions</div>
-            </div>
-
-            <div className="bg-green-600/10 border border-green-600/30 rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-3">
-                <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                <span className="text-green-400 font-bold text-sm">WIND ADVANTAGE</span>
-              </div>
-              <div className="text-gray-200 mb-2">NE 8-12 mph steady</div>
-              <div className="text-green-400 font-bold text-lg">Favors north-facing stands</div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab 2: Intel */}
-        {activeTab === 2 && (
-          <div className="p-4 space-y-4 overflow-y-auto h-full">
-            <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-3">
-                <Activity className="w-5 h-5 text-green-400" />
-                <h3 className="font-bold text-green-400">WILDLIFE ACTIVITY</h3>
-              </div>
-              <div className="space-y-3">
-                <div className="bg-green-600/10 border border-green-600/30 rounded-lg p-3">
-                  <div className="text-green-400 font-bold text-lg mb-1">Population: 78/100</div>
-                  <div className="text-gray-300 text-sm">High activity based on 12 recent sightings</div>
-                </div>
-                <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-3">
-                  <div className="text-blue-400 font-bold mb-1">Recent Sighting</div>
-                  <div className="text-gray-300 text-sm">8-point buck • 2 miles SE • Yesterday 6:15 PM</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-3">
-                <Activity className="w-5 h-5 text-blue-400" />
-                <h3 className="font-bold text-blue-400">SOCIAL INTEL</h3>
-              </div>
-              <div className="space-y-3">
-                <div className="bg-green-600/10 border border-green-600/30 rounded-lg p-3">
-                  <div className="text-green-400 font-bold text-sm mb-1">FRESH REPORT</div>
-                  <div className="text-gray-200 text-sm">"Got a nice 6-pointer this morning at first light near the oak ridge"</div>
-                  <div className="text-gray-400 text-xs mt-2">Facebook • 2 hours ago</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: Regulations */}
-        {activeTab === 3 && (
-          <div className="p-4 space-y-4 overflow-y-auto h-full">
-            <div className="bg-green-600/10 border border-green-600/30 rounded-xl p-4 text-center">
-              <div className="text-green-400 font-bold text-2xl mb-2">SEASON OPEN</div>
-              <div className="text-gray-300 text-lg">23 days remaining</div>
-            </div>
-
-            <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
-              <h3 className="font-bold text-red-400 mb-4">HUNTING REGULATIONS</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between py-2 border-b border-gray-700">
-                  <span className="text-gray-300">Bag Limit</span>
-                  <span className="text-blue-400 font-bold">
-                    {selectedGameType === 'big-game' ? '1 buck, 2 doe' : '6 daily'}
-                  </span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-700">
-                  <span className="text-gray-300">Legal Hours</span>
-                  <span className="text-purple-400 font-bold">6:05 AM - 6:47 PM</span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-gray-300">License Required</span>
-                  <span className="text-yellow-400 font-bold">Valid + Tags</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-              <div className="flex items-center justify-center space-x-2 mb-4">
-                <Calendar className="w-5 h-5 text-purple-400" />
-                <h3 className="font-bold text-purple-400">MOON PHASE</h3>
-              </div>
-              <div className="text-6xl mb-3">🌗</div>
-              <div className="text-white font-bold text-lg mb-1">Last Quarter</div>
-              <div className="text-gray-400 mb-4">68% illuminated</div>
-
-              <div className="space-y-2">
-                <div className="bg-green-600/10 border border-green-600/30 rounded-lg p-3">
-                  <div className="text-green-400 font-bold text-sm mb-1">MAJOR PERIODS</div>
-                  <div className="text-gray-200 text-sm">5:30 AM - 7:30 AM</div>
-                  <div className="text-gray-200 text-sm">5:30 PM - 7:30 PM</div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>
