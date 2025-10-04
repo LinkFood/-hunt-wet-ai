@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { assessHuntingViability, getStateHuntingData, STATE_WILDLIFE_AGENCIES } from '@/lib/hunting-data'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
@@ -23,6 +24,29 @@ export async function POST(request: NextRequest) {
     // Extract state from location name for regulations lookup
     const locationParts = location.displayName.split(',')
     const state = locationParts.length > 1 ? locationParts[locationParts.length - 1].trim() : ''
+
+    // STEP 1: Assess if this location is even huntable
+    const viability = await assessHuntingViability(location.lat, location.lon, location.displayName)
+
+    // STEP 2: Get state wildlife agency info
+    const stateData = await getStateHuntingData(state)
+
+    // If urban area with no hunting, return early
+    if (!viability.isViable) {
+      return NextResponse.json({
+        success: true,
+        intel: {
+          summary: viability.reason,
+          species: [],
+          bestTimes: 'No hunting opportunities in this urban area.',
+          tactics: viability.reason,
+          seasons: `No hunting seasons apply to ${location.displayName} city limits.`,
+          regulations: stateData.success
+            ? `For hunting regulations in surrounding areas, visit:\n${stateData.data?.source}\n${stateData.data?.regulationsUrl}`
+            : 'Check your state wildlife agency for hunting regulations in surrounding areas.'
+        }
+      })
+    }
 
     // Generate comprehensive hunting intel
     const completion = await openai.chat.completions.create({
@@ -79,44 +103,46 @@ CRITICAL INSTRUCTIONS:
    [2-3 sentences about stand placement, calling, gear]"
 
 5. **seasons** (formatted text):
-   Research ACTUAL ${state || location.displayName} hunting season dates for current year.
+   Provide general hunting season timeframes for ${state}.
+   ${stateData.success ? `\n   IMPORTANT: Include this at the end:\n   "⚠️ Verify current season dates at:\n   ${stateData.data?.regulationsUrl}"` : ''}
    Format:
-   "🦌 White-tailed Deer
-   • Archery: Oct 1 - Nov 15
-   • Firearm: Nov 16 - Dec 8
-   • Muzzleloader: Dec 9 - Dec 17
+   "🦌 White-tailed Deer (Typical ${state} Seasons)
+   • Archery: Early October - Mid November
+   • Firearm: Mid November - Early December
+   • Muzzleloader: Early - Mid December
 
    🐻 Black Bear
-   • Season: Sept 1 - Dec 31
+   • Season: September - December
 
-   [Continue for ALL huntable species in this area...]"
+   [Continue for other common species...]
+
+   ${stateData.success ? `\n⚠️ VERIFY CURRENT DATES:\n${stateData.data?.regulationsUrl}` : ''}"
 
 6. **regulations** (formatted text):
-   Research ACTUAL ${state || location.displayName} hunting regulations.
-   Include REAL license costs, bag limits, and weapon restrictions.
+   Provide GENERAL guidance, then direct to official source.
    Format:
    "📋 LICENSE REQUIREMENTS
-   • Valid ${state} hunting license: $XX
-   • Deer stamp: $XX (if required)
-   • [Other permits needed]
+   • Valid ${state} hunting license required
+   • Deer permit may be required
+   • Check for additional stamps/permits
 
-   🎯 BAG LIMITS (${state} - Current Season)
-   • Deer: [actual limit]
-   • Bear: [actual limit]
-   • [Other species limits]
+   🎯 BAG LIMITS
+   Varies by county and weapon type in ${state}.
 
    ⏰ LEGAL HOURS
-   • [Actual hours for ${state}]
+   Typically 30 min before sunrise to 30 min after sunset.
 
    🔫 WEAPONS
-   • Archery: [${state} specific requirements]
-   • Firearms: [${state} specific requirements]
-   • Check ${state} DNR/Wildlife agency for updates"
+   Varies by season and county in ${state}.
 
-CRITICAL: Use your knowledge of ${state || location.displayName} hunting regulations. If uncertain, indicate to check with state wildlife agency.
-TONE: Confident but accurate. Cite real regulations.
+   ⚠️ GET OFFICIAL REGULATIONS:
+   ${stateData.success ? `${stateData.data?.source}\n${stateData.data?.regulationsUrl}\n\nLicenses: ${stateData.data?.licenseUrl}` : 'Check your state wildlife agency website'}"
+
+CRITICAL PHILOSOPHY: Be helpful with general timeframes, but ALWAYS direct to official sources for current regulations.
+TONE: Helpful but honest. "Check official sources for exact dates/limits."
 CURRENT DATE: ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-STATE: ${state || 'Unknown'}`
+STATE: ${state || 'Unknown'}
+LOCATION TYPE: ${viability.classification}`
         },
         {
           role: 'user',
