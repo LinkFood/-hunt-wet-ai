@@ -94,14 +94,18 @@ export default function Home() {
 
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
+      console.error('Geolocation not supported')
+      alert('Your browser does not support location services. Please enter your ZIP code instead.')
       setGpsStatus('error')
       return
     }
 
     setGpsStatus('loading')
+    console.log('Requesting location permission...')
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
+        console.log('Location permission granted:', position.coords)
         const { latitude, longitude } = position.coords
         try {
           // Use OpenStreetMap Nominatim to get location details
@@ -141,6 +145,18 @@ export default function Home() {
       },
       (error) => {
         console.error('GPS error:', error)
+
+        // Show user-friendly error message
+        let errorMessage = 'Could not get your location. '
+        if (error.code === 1) {
+          errorMessage += 'You denied location access. Please enter your ZIP code instead.'
+        } else if (error.code === 2) {
+          errorMessage += 'Location unavailable. Please enter your ZIP code instead.'
+        } else if (error.code === 3) {
+          errorMessage += 'Request timed out. Please enter your ZIP code instead.'
+        }
+
+        alert(errorMessage)
         setGpsStatus('error')
       },
       {
