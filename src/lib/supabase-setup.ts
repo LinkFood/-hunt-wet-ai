@@ -178,6 +178,40 @@ export async function storeWeatherSnapshot(weatherData: {
   return data
 }
 
+// Track chat messages for data collection
+export async function trackChatMessage(chatData: {
+  location_name: string
+  latitude: number
+  longitude: number
+  game_type?: string
+  user_message: string
+}) {
+  if (!supabase) {
+    console.warn('Supabase not configured, skipping chat message tracking')
+    return null
+  }
+
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .insert([{
+      location_name: chatData.location_name,
+      latitude: chatData.latitude,
+      longitude: chatData.longitude,
+      game_type: chatData.game_type,
+      user_message: chatData.user_message,
+      created_at: new Date().toISOString()
+    }])
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error tracking chat message:', error)
+    return null
+  }
+
+  return data
+}
+
 export async function getSuccessPatterns(zipCode: string, gameType: string) {
   if (!supabase) return []
 
