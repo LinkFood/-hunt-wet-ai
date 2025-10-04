@@ -53,7 +53,8 @@ export default function ChatPage() {
       console.error('Error loading location:', error)
       router.push('/')
     }
-  }, [router])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

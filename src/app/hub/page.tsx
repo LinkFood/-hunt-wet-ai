@@ -59,7 +59,8 @@ export default function HubPage() {
       console.error('Error loading location:', error)
       router.push('/')
     }
-  }, [router])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const fetchHubData = async (loc: HuntLocation, game: string) => {
     setLoading(true)
