@@ -269,12 +269,32 @@ export function formatWeatherForGPT(weather: RawWeatherData): string {
   summary += `UV Index: ${current.uvi}\n`
   summary += `Visibility: ${Math.round(current.visibility * 0.000621371)} miles\n\n`
 
-  // Pressure trend analysis (next 12 hours)
-  summary += `PRESSURE TREND (Next 12 Hours):\n`
-  const pressureTrend = hourly.slice(0, 12).map((h, i) =>
-    `  ${i * 1}hr: ${h.barometric_pressure} mb`
-  ).join('\n')
-  summary += pressureTrend + '\n\n'
+  // Pressure trend analysis (next 12 hours) with HUNTING INTELLIGENCE
+  const currentPressure = current.barometric_pressure
+  const pressure3hrFuture = hourly[1]?.barometric_pressure || currentPressure
+  const pressure6hrFuture = hourly[2]?.barometric_pressure || currentPressure
+  const pressureChange3hr = pressure3hrFuture - currentPressure
+  const pressureChange6hr = pressure6hrFuture - currentPressure
+
+  let pressureDirection = 'steady'
+  let huntingImpact = ''
+
+  if (pressureChange3hr > 1) {
+    pressureDirection = 'rising'
+    huntingImpact = '📈 RISING PRESSURE - Game activity may decrease, but pre-front movement can be excellent'
+  } else if (pressureChange3hr < -1) {
+    pressureDirection = 'falling'
+    huntingImpact = '📉 FALLING PRESSURE - PRIME HUNTING! Animals feed heavily before storms'
+  } else {
+    pressureDirection = 'steady'
+    huntingImpact = '➡️ STEADY PRESSURE - Normal activity patterns expected'
+  }
+
+  summary += `PRESSURE TREND (CRITICAL FOR HUNTING):\n`
+  summary += `Current: ${currentPressure} mb\n`
+  summary += `3-Hour: ${pressure3hrFuture} mb (${pressureChange3hr > 0 ? '+' : ''}${pressureChange3hr.toFixed(1)} mb)\n`
+  summary += `6-Hour: ${pressure6hrFuture} mb (${pressureChange6hr > 0 ? '+' : ''}${pressureChange6hr.toFixed(1)} mb)\n`
+  summary += `${huntingImpact}\n\n`
 
   // Next 24 hours hourly (critical for hunting timing)
   summary += `HOURLY FORECAST (Next 24 Hours):\n`

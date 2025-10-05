@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify-db": "node scripts/verify-db.js",
+    "test-log-hunt": "curl -X POST http://localhost:3000/api/log-hunt -H 'Content-Type: application/json' -d @scripts/test-hunt.json"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",

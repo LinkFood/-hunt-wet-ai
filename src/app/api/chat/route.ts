@@ -65,7 +65,7 @@ Keep responses concise (2-4 paragraphs) unless asked for more detail.`
 
     // Generate response
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       messages: chatMessages,
       temperature: 0.8,
       max_tokens: 500

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { assessHuntingViability, getStateHuntingData, STATE_WILDLIFE_AGENCIES } from '@/lib/hunting-data'
 import { getStateRegulations } from '@/lib/state-regulations-db'
+import { getLunarData } from '@/lib/lunar'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
@@ -35,6 +36,9 @@ export async function POST(request: NextRequest) {
     // STEP 3: Get REAL regulations from curated database
     console.log(`Loading regulations database for ${state}...`)
     const stateRegs = getStateRegulations(state)
+
+    // STEP 4: Get moon phase and solunar data
+    const lunarData = await getLunarData()
 
     // If urban area with no hunting, return early
     if (!viability.isViable) {
@@ -82,11 +86,16 @@ export async function POST(request: NextRequest) {
 
       // Still use GPT for summary, species, times, and tactics (weather-based)
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
             content: `You are Hunt Wet AI. Generate hunting intelligence for ${location.displayName}, ${state}.
+
+LUNAR DATA:
+🌙 Moon Phase: ${lunarData.phase} (${lunarData.illumination}% illumination)
+📊 Hunting Activity Score: ${lunarData.huntingScore}/10
+💡 ${lunarData.recommendation}
 
 YOU MUST RETURN VALID JSON:
 {
@@ -97,10 +106,10 @@ YOU MUST RETURN VALID JSON:
 }
 
 Focus on:
-1. **summary**: 3-4 sentences about current weather conditions and best hunting windows
+1. **summary**: 3-4 sentences correlating WEATHER + MOON PHASE for hunting. Reference moon impact on game activity.
 2. **species**: List huntable game in ${state} (based on the seasons we have: ${Object.keys(stateRegs.seasons).join(', ')})
-3. **bestTimes**: Specific morning/evening times for next 3 days based on weather
-4. **tactics**: Location strategy, wind, setup for ${location.displayName} area`
+3. **bestTimes**: Specific times for next 3 days. Consider moon phase impact on feeding patterns.
+4. **tactics**: Location strategy, wind, AND how moon phase affects game movement/visibility`
           },
           {
             role: 'user',
@@ -144,7 +153,7 @@ Focus on:
 
     // Generate comprehensive hunting intel
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'system',
