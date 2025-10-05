@@ -53,18 +53,24 @@ export default function DashboardPage() {
   }, [])
 
   const loadWeather = async () => {
+    setLoading(true)
     try {
       const res = await fetch(`/api/test-visual-crossing?type=forecast&lat=${location.lat}&lon=${location.lon}&days=7`)
       const data = await res.json()
+      console.log('Weather data:', data)
       if (data.success) {
         setWeather(data.data)
         if (data.data[0]?.hours) {
           const now = new Date().getHours()
           setCurrentWeather(data.data[0].hours[now] || data.data[0].hours[0])
         }
+      } else {
+        console.error('Weather API returned error:', data)
       }
     } catch (error) {
       console.error('Weather load error:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -162,8 +168,25 @@ export default function DashboardPage() {
         {/* WEATHER TAB */}
         {activeTab === 'weather' && (
           <div className="space-y-6">
+            {/* Loading State */}
+            {loading && weather.length === 0 && (
+              <div className="bg-gray-800 rounded-lg p-12 border border-gray-700 text-center">
+                <div className="text-gray-400">Loading weather data...</div>
+              </div>
+            )}
+
+            {/* Error State */}
+            {!loading && weather.length === 0 && (
+              <div className="bg-gray-800 rounded-lg p-12 border border-gray-700 text-center">
+                <div className="text-red-400 mb-2">No weather data loaded</div>
+                <button onClick={loadWeather} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded">
+                  Retry
+                </button>
+              </div>
+            )}
+
             {/* Current Conditions */}
-            {currentWeather && (
+            {currentWeather && weather.length > 0 && (
               <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
                 <div className="flex justify-between items-start">
                   <div>

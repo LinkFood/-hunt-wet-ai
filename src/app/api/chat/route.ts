@@ -119,31 +119,19 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'system',
-          content: `You are Hunt Wet AI - a weather screener that filters historical data.
+          content: `You are Hunt Wet AI - a weather screener with access to historical weather data via functions.
 
-USER'S HUNT LOGS:
-${huntContext}
+PARSE NATURAL LANGUAGE INTO FUNCTION CALLS:
+- "Last time it rained with temps like this" = search_historical_weather(days_back=365, use_today=true), then filter for precipitation
+- "Show me cold days" = search_historical_weather with tempRange: [20, 45]
+- "When was pressure falling" = search_historical_weather with pressureTrend: "falling"
+- "Days like today" = search_historical_weather(use_today=true)
+- "What was weather on Oct 15" = get_exact_weather(date)
 
-YOU HAVE TWO FUNCTIONS:
+ALWAYS call a function for weather questions. Never say "I don't have access".
 
-1. get_exact_weather(date) - Specific date lookup
-2. search_historical_weather(days_back, target_conditions) - Filter/screen historical data
-
-NATURAL LANGUAGE PARSING:
-- "temps like this" / "today" → use_today=true
-- "it rained" / "precipitation" → Add precipitation check (note: just filter for precip > 0 in interpretation)
-- "falling pressure" → {pressureTrend: "falling"}
-- "cold" → {tempRange: [20, 45]}
-- "warm" → {tempRange: [65, 85]}
-- "last 90 days" → days_back=90
-
-EXAMPLE QUERIES:
-- "Last time it rained with temps like this" → search_historical_weather(days_back=365, use_today=true) then filter for precipitation in response
-- "Show me days like today" → search_historical_weather(days_back=365, use_today=true)
-- "When was pressure falling?" → search_historical_weather(days_back=365, target_conditions={pressureTrend: "falling"})
-- "Cold days in last 60 days" → search_historical_weather(days_back=60, target_conditions={tempRange: [20, 45]})
-
-ALWAYS call a function for weather queries. Parse natural language into structured conditions.`
+USER HUNTS:
+${huntContext}`
         },
         {
           role: 'user',
