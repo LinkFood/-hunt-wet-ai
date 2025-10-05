@@ -287,7 +287,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 
   -- Preferences
   primary_game_types TEXT[],
-  saved_locations UUID[] REFERENCES locations(id),
+  saved_locations UUID[],
   notification_preferences JSONB,
 
   -- Usage tracking
@@ -303,12 +303,12 @@ CREATE INDEX IF NOT EXISTS idx_users_active ON user_profiles(last_active_at DESC
 -- FUNCTIONS: Auto-update timestamps
 -- =============================================================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS $function$
 BEGIN
    NEW.updated_at = NOW();
    RETURN NEW;
 END;
-$$ language 'plpgsql';
+$function$ language 'plpgsql';
 
 -- Add triggers for updated_at
 CREATE TRIGGER update_locations_updated_at BEFORE UPDATE ON locations
