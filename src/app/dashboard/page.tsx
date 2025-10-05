@@ -14,7 +14,10 @@ interface WeatherDay {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<'weather' | 'log' | 'hunts'>('weather')
+  const [activeTab, setActiveTab] = useState<'weather' | 'log' | 'hunts' | 'chat'>('weather')
+  const [chatMessage, setChatMessage] = useState('')
+  const [chatHistory, setChatHistory] = useState<{role: string, content: string}[]>([])
+  const [chatLoading, setChatLoading] = useState(false)
   const [weather, setWeather] = useState<WeatherDay[]>([])
   const [currentWeather, setCurrentWeather] = useState<any>(null)
   const [hunts, setHunts] = useState<any[]>([])

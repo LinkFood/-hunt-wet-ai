@@ -1,81 +1,99 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import { getWeatherData, formatWeatherForGPT } from '@/lib/weather'
+import { createClient } from '@supabase/supabase-js'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
 })
 
-// AI-powered hunting chat
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+// AI-powered hunting chat with hunt log analysis
 export async function POST(request: NextRequest) {
   try {
-    const { location, gameType, messages, userMessage } = await request.json()
+    const { message, user_id } = await request.json()
 
-    if (!location?.lat || !location?.lon) {
+    if (!message) {
       return NextResponse.json(
-        { success: false, error: 'Location required' },
+        { success: false, error: 'message required' },
         { status: 400 }
       )
     }
 
-    // Get fresh weather data
-    const weatherData = await getWeatherData(location.lat, location.lon)
-    const weatherSummary = formatWeatherForGPT(weatherData)
+    const userId = user_id || 'james'
 
-    // Build conversation history
-    const chatMessages: any[] = [
-      {
-        role: 'system',
-        content: `You are Hunt Wet AI, an expert hunting companion with deep knowledge of hunting tactics, game behavior, weather impacts, and local hunting conditions.
+    // Get user's hunt history
+    const { data: hunts, error: huntError } = await supabase
+      .from('hunt_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('hunt_date', { ascending: false })
+      .limit(100)
 
-CONTEXT:
-- Location: ${location.displayName}
-- Game Type: ${gameType}
-- Current Date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-
-WEATHER DATA:
-${weatherSummary}
-
-YOUR ROLE:
-- Answer questions about hunting conditions, tactics, timing, and game behavior
-- Reference current weather when relevant
-- Be specific and actionable
-- Share hunting knowledge and best practices
-- Suggest optimal hunting times based on conditions
-
-TONE:
-- Conversational and friendly
-- Confident and knowledgeable
-- Specific, not generic
-- Like talking to an experienced hunting buddy
-
-Keep responses concise (2-4 paragraphs) unless asked for more detail.`
-      }
-    ]
-
-    // Add conversation history
-    if (messages && messages.length > 0) {
-      messages.forEach((msg: any) => {
-        chatMessages.push({
-          role: msg.role,
-          content: msg.content
-        })
-      })
+    if (huntError) {
+      console.error('Error fetching hunts:', huntError)
     }
 
-    // Generate response
+    // Build hunt context
+    let huntContext = ''
+    if (hunts && hunts.length > 0) {
+      huntContext = `\nUSER'S HUNT HISTORY (${hunts.length} hunts logged):\n${JSON.stringify(hunts, null, 2)}`
+    } else {
+      huntContext = '\nThe user has not logged any hunts yet.'
+    }
+
+    // Call GPT-4o with hunt context
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
-      messages: chatMessages,
-      temperature: 0.8,
-      max_tokens: 500
+      messages: [
+        {
+          role: 'system',
+          content: `You are Hunt Wet AI, a hunting intelligence assistant that analyzes hunt patterns and environmental data.
+
+You have access to the user's complete hunt history with 40+ data points per hunt:
+- Date, time, location
+- Weather (temp, pressure, wind, humidity, dew point)
+- Pressure trends (rising/falling/steady)
+- Moon phase and illumination
+- Hunt outcomes (success/failure)
+- Species hunted
+- Notes
+
+${huntContext}
+
+When answering questions:
+1. Search through the hunt logs for relevant patterns
+2. Be SPECIFIC with dates, conditions, and data
+3. Calculate success rates when relevant
+4. Identify patterns (e.g., "falling pressure = 89% success")
+5. Cite exact hunts as examples
+
+Answer questions like:
+- "When was the last time pressure was falling?"
+- "Show me successful hunts with falling pressure"
+- "What temperature range works best for me?"
+- "What conditions match my best hunts?"
+
+Be data-driven, specific, and actionable. Like a smart hunting buddy who remembers everything.`
+        },
+        {
+          role: 'user',
+          content: message
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 1000
     })
 
     const response = completion.choices[0]?.message?.content || 'Sorry, I could not generate a response.'
 
     return NextResponse.json({
       success: true,
-      response
+      message: response,
+      hunts_analyzed: hunts?.length || 0
     })
 
   } catch (error) {
