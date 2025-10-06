@@ -2,10 +2,11 @@
 
 interface MoonPhaseProps {
   phase: number // 0-1 (0=new, 0.25=first quarter, 0.5=full, 0.75=last quarter, 1=new)
+  forecastPhases?: number[] // Next 7 days of moon phases for trend
   size?: 'small' | 'medium' | 'large'
 }
 
-export default function MoonPhase({ phase, size = 'medium' }: MoonPhaseProps) {
+export default function MoonPhase({ phase, forecastPhases, size = 'medium' }: MoonPhaseProps) {
   const sizeMap = { small: 40, medium: 60, large: 100 }
   const moonSize = sizeMap[size]
 
@@ -31,6 +32,36 @@ export default function MoonPhase({ phase, size = 'medium' }: MoonPhaseProps) {
 
   const phaseName = getPhaseName(phase)
   const waxing = phase < 0.5
+
+  // Calculate days until next major phase
+  const getDaysToNextPhase = () => {
+    if (!forecastPhases || forecastPhases.length === 0) return null
+
+    // Find next major phase transition
+    const majorPhases = [0, 0.25, 0.5, 0.75]
+    const currentMajor = majorPhases.reduce((prev, curr) =>
+      Math.abs(curr - phase) < Math.abs(prev - phase) ? curr : prev
+    )
+
+    let nextMajorIndex = majorPhases.indexOf(currentMajor) + 1
+    if (nextMajorIndex >= majorPhases.length) nextMajorIndex = 0
+    const nextMajor = majorPhases[nextMajorIndex]
+
+    // Count days until we reach next major phase
+    for (let i = 0; i < forecastPhases.length; i++) {
+      const diff = Math.abs(forecastPhases[i] - nextMajor)
+      if (diff < 0.05) { // Within 5% of major phase
+        return { days: i + 1, phase: getPhaseName(nextMajor) }
+      }
+    }
+    return null
+  }
+
+  const nextPhaseInfo = getDaysToNextPhase()
+
+  // Calculate trend (waxing or waning)
+  const trend = phase < 0.5 ? 'Waxing' : 'Waning'
+  const trendIcon = phase < 0.5 ? '→' : '←'
 
   // SVG moon visualization
   const renderMoon = () => {
@@ -70,9 +101,28 @@ export default function MoonPhase({ phase, size = 'medium' }: MoonPhaseProps) {
   return (
     <div className="flex flex-col items-center gap-2">
       {renderMoon()}
-      <div className="text-center">
+      <div className="text-center space-y-1">
         <div className="text-xs font-mono text-gray-300 uppercase">{phaseName}</div>
         <div className="text-xs text-gray-500 font-mono">{illumination}% Illuminated</div>
+
+        {/* Context: Trend */}
+        <div className="text-xs text-gray-400 font-mono">
+          {trend} {trendIcon}
+        </div>
+
+        {/* Context: Next Phase */}
+        {nextPhaseInfo && (
+          <div className="text-xs text-yellow-500 font-mono">
+            {nextPhaseInfo.phase} in {nextPhaseInfo.days}d
+          </div>
+        )}
+
+        {/* Context: Hunting Quality */}
+        <div className={`text-xs font-mono ${
+          illumination > 75 ? 'text-red-400' : illumination < 25 ? 'text-green-400' : 'text-gray-400'
+        }`}>
+          {illumination > 75 ? 'LOW ACTIVITY' : illumination < 25 ? 'PEAK ACTIVITY' : 'MODERATE'}
+        </div>
       </div>
     </div>
   )

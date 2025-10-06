@@ -4,13 +4,35 @@ interface WindCompassProps {
   direction: number // Degrees 0-360
   speed: number // MPH
   gust?: number // MPH
+  forecastSpeeds?: number[] // Next 6 hours of wind speeds for trend
+  forecastGusts?: number[] // Next 6 hours of gusts for trend
   size?: 'small' | 'medium' | 'large'
 }
 
-export default function WindCompass({ direction, speed, gust, size = 'medium' }: WindCompassProps) {
+export default function WindCompass({ direction, speed, gust, forecastSpeeds, forecastGusts, size = 'medium' }: WindCompassProps) {
   const sizeMap = { small: 80, medium: 120, large: 160 }
   const compassSize = sizeMap[size]
   const center = compassSize / 2
+
+  // Calculate wind trend
+  const calculateWindTrend = () => {
+    if (!forecastSpeeds || forecastSpeeds.length < 3) return null
+
+    const avg3hr = forecastSpeeds.slice(0, 3).reduce((a, b) => a + b, 0) / 3
+    const change = avg3hr - speed
+
+    return {
+      direction: change > 0.5 ? 'increasing' : change < -0.5 ? 'decreasing' : 'steady',
+      amount: Math.abs(Math.round(change))
+    }
+  }
+
+  const windTrend = calculateWindTrend()
+
+  // Calculate peak gust forecast
+  const peakGust = forecastGusts && forecastGusts.length > 0
+    ? Math.max(...forecastGusts)
+    : gust || speed
 
   // Cardinal directions
   const cardinals = [
@@ -85,12 +107,30 @@ export default function WindCompass({ direction, speed, gust, size = 'medium' }:
       </svg>
 
       {/* Wind data */}
-      <div className="mt-3 text-center">
+      <div className="mt-3 text-center space-y-1">
         <div className="text-2xl font-mono text-white">{speed} mph</div>
         <div className="text-xs text-gray-500 font-mono">{direction}° {getCardinal(direction)}</div>
+
+        {/* Context: Current Gusts */}
         {gust && gust > speed && (
-          <div className="text-xs text-yellow-500 font-mono mt-1">
+          <div className="text-xs text-yellow-500 font-mono">
             Gusts: {gust} mph
+          </div>
+        )}
+
+        {/* Context: Trend */}
+        {windTrend && windTrend.direction !== 'steady' && (
+          <div className={`text-xs font-mono ${
+            windTrend.direction === 'increasing' ? 'text-red-400' : 'text-green-400'
+          }`}>
+            {windTrend.direction} to {speed + (windTrend.direction === 'increasing' ? windTrend.amount : -windTrend.amount)}mph
+          </div>
+        )}
+
+        {/* Context: Peak Gusts Forecast */}
+        {peakGust > speed + 2 && (
+          <div className="text-xs text-orange-500 font-mono">
+            Peak gusts: {Math.round(peakGust)}mph (next 6h)
           </div>
         )}
       </div>
