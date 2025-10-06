@@ -32,10 +32,29 @@ export default function TimelineMetric({
   const currentPoint = {
     date: now.toISOString().split('T')[0],
     value: currentValue,
-    isForecast: false
+    isForecast: false,
+    historical: currentValue,
+    forecast: null
   }
 
-  const allData = [...historicalData, currentPoint, ...forecastData]
+  // Split data into historical and forecast values for separate rendering
+  const allData = [
+    ...historicalData.map(d => ({
+      ...d,
+      historical: d.value,
+      forecast: null
+    })),
+    {
+      ...currentPoint,
+      historical: currentValue,
+      forecast: currentValue // Bridge point
+    },
+    ...forecastData.map(d => ({
+      ...d,
+      historical: null,
+      forecast: d.value
+    }))
+  ]
 
   // Calculate stats from historical data only
   const historicalValues = historicalData.map(d => d.value).filter(Boolean)
@@ -147,31 +166,46 @@ export default function TimelineMetric({
 
             {/* Historical data - solid line */}
             <Line
-              dataKey="value"
+              dataKey="historical"
               stroke={color}
               strokeWidth={2}
               dot={false}
               isAnimationActive={false}
               connectNulls
+              name="Historical"
             />
 
-            {/* Forecast data - show differently (lighter/dashed) */}
-            {/* Note: In a real implementation, you'd split this into two datasets */}
+            {/* Forecast data - dashed line with lower opacity */}
+            <Line
+              dataKey="forecast"
+              stroke={color}
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              dot={false}
+              isAnimationActive={false}
+              opacity={0.6}
+              connectNulls
+              name="Forecast"
+            />
           </ComposedChart>
         </ResponsiveContainer>
 
         {/* Legend */}
         <div className="flex gap-4 justify-center mt-2 text-xs text-gray-500 font-mono">
           <span className="flex items-center gap-1">
-            <div className="w-3 h-0.5" style={{ backgroundColor: color }}></div>
+            <svg width="20" height="4" viewBox="0 0 20 4">
+              <line x1="0" y1="2" x2="20" y2="2" stroke={color} strokeWidth="2" />
+            </svg>
             HISTORICAL (FACTS)
           </span>
           <span className="flex items-center gap-1">
-            <div className="w-3 h-0.5 bg-yellow-500"></div>
+            <div className="w-0.5 h-3 bg-yellow-500"></div>
             NOW
           </span>
           <span className="flex items-center gap-1">
-            <div className="w-3 h-0.5" style={{ backgroundColor: color, opacity: 0.5 }}></div>
+            <svg width="20" height="4" viewBox="0 0 20 4">
+              <line x1="0" y1="2" x2="20" y2="2" stroke={color} strokeWidth="2" strokeDasharray="3 2" opacity="0.6" />
+            </svg>
             FORECAST (PREDICTIONS)
           </span>
         </div>
