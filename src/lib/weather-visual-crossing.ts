@@ -122,6 +122,62 @@ export async function getHistoricalWeather(
 }
 
 /**
+ * Fetch historical weather for a date range
+ * Returns ACTUAL past weather (not forecasts)
+ */
+export async function getHistoricalWeatherRange(
+  latitude: number,
+  longitude: number,
+  startDate: string, // YYYY-MM-DD
+  endDate: string    // YYYY-MM-DD
+): Promise<VisualCrossingDailyForecast[]> {
+  const API_KEY = process.env.VISUAL_CROSSING_API_KEY
+
+  if (!API_KEY) {
+    throw new Error('VISUAL_CROSSING_API_KEY not set')
+  }
+
+  try {
+    // Visual Crossing Timeline API for historical range
+    const url = `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}/${startDate}/${endDate}`
+
+    const params = new URLSearchParams({
+      key: API_KEY,
+      unitGroup: 'us',
+      include: 'hours,days',
+      elements: 'datetime,temp,tempmax,tempmin,feelslike,humidity,dew,pressure,windspeed,windgust,winddir,precipprob,precip,preciptype,cloudcover,visibility,conditions,description,sunrise,sunset,uvindex'
+    })
+
+    const response = await fetch(`${url}?${params}`)
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`Visual Crossing API error: ${response.status} ${error}`)
+    }
+
+    const data = await response.json()
+
+    if (!data.days || data.days.length === 0) {
+      return []
+    }
+
+    // Return daily historical data with hourly breakdown
+    return data.days.map((day: any) => ({
+      date: day.datetime,
+      temp_max: day.tempmax,
+      temp_min: day.tempmin,
+      conditions: day.conditions,
+      description: day.description || day.conditions,
+      hours: (day.hours || []).map((hour: any) => normalizeWeatherData(hour, day))
+    }))
+
+  } catch (error) {
+    console.error('Visual Crossing historical range error:', error)
+    return []
+  }
+}
+
+/**
  * Fetch current + future weather forecast
  * Used for checking upcoming conditions
  */

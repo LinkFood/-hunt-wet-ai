@@ -214,6 +214,84 @@ Hunting is data. It's just never been saved and filtered the way we're about to 
 
 ---
 
+## 📊 THE ETHOS: Bloomberg Terminal for Weather
+
+**Weather as Trading. Data as Intelligence.**
+
+This is not a weather app. This is a **weather intelligence terminal**.
+
+### The Philosophy: SOURCE → FILTER → DISPLAY → LEARN
+
+Just like Bloomberg Terminal treats financial markets, we treat weather:
+
+**NO PREDICTIONS. NO SCORES. NO INTERPRETATION.**
+- We don't tell you "good hunting day" or "bad hunting day"
+- We don't calculate hunting scores
+- We don't recommend when to hunt
+- **The user makes the decision**
+
+**JUST DATA + CONTEXT + PATTERNS:**
+- Show EVERY data point with 14-day historical context (sparklines)
+- Dense, information-rich displays (not cute boxes with emojis)
+- Professional charts overlaying multiple metrics
+- Filter historical weather to find pattern matches
+- Cross-reference patterns with user's logged outcomes
+
+### Weather = Stock Market
+
+| Trading Terminal | Weather Terminal |
+|-----------------|------------------|
+| Stock price | Barometric pressure (most critical) |
+| Technical indicators | Humidity, wind, temp, dew point |
+| Chart patterns | 14-day trends (sparklines) |
+| Win rate | Hunt success rate |
+| Trade journal | Hunt logs |
+| Stock screener | Weather pattern filter |
+| Historical analysis | Historical weather query |
+
+### The User Interface
+
+**Bloomberg-style data density:**
+- Current conditions: Big numbers + 6 compact metric cards
+- Every metric has inline sparkline showing 14-day trend
+- Multi-metric charts (pressure + temp + wind overlaid)
+- Dense data tables with all metrics visible
+- No wasted space, maximum information per pixel
+
+**Why sparklines matter:**
+- Pressure at 1024mb means nothing without context
+- Pressure at 1024mb FALLING from 1030mb over 3 days = actionable
+- Every data point needs 7-14 day context to reveal trends
+- User pattern-matches visually: "This looks like last Tuesday"
+
+### The Killer Feature: Pattern Filtering
+
+Like screening stocks by P/E ratio and volume, screen weather by:
+- "Show me days with falling pressure + waxing moon"
+- "Find days matching October 15, 2023"
+- "When was temp 55-65°F + NW wind?"
+
+Returns: Filtered list of historical dates matching criteria
+Then: Cross-reference with user's hunt logs to show outcomes
+Result: "You hunted 3 of these days - 2 successful"
+
+**This is technical analysis for weather.**
+
+### Why This Works for Hunting (and Everything Else)
+
+Weather affects outcomes:
+- **Hunting:** Pressure drives animal movement
+- **Fishing:** Water temp + moon phase
+- **Surfing:** Swell + wind direction
+- **Construction:** Temp range + rain forecast
+- **Sports:** Historical weather on game days
+
+The terminal shows patterns. The user logs outcomes. The system learns what conditions = success.
+
+**Universal weather oracle. Hunting is just the proof of concept.**
+
+---
+
 ## 🌍 THE BIGGER VISION
 
 **This architecture works for ANY activity where weather matters.**

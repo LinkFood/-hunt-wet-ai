@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  // Skip middleware for API routes and static files
+  // Skip middleware for API routes, static files, and root (login page)
   if (
     request.nextUrl.pathname.startsWith('/api') ||
     request.nextUrl.pathname.startsWith('/_next') ||
     request.nextUrl.pathname.startsWith('/favicon') ||
-    request.nextUrl.pathname === '/login'
+    request.nextUrl.pathname === '/'
   ) {
     return NextResponse.next()
   }
@@ -16,9 +16,9 @@ export function middleware(request: NextRequest) {
   const authToken = request.cookies.get('hunt-wet-auth')
   const correctPassword = process.env.HUNT_WET_PASSWORD || 'huntseason2024'
 
-  // If no auth token or invalid, redirect to login
+  // If no auth token or invalid, redirect to root (login)
   if (!authToken || authToken.value !== correctPassword) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
   return NextResponse.next()

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import DataMetric from '@/components/DataMetric'
+import TimelineMetric from '@/components/TimelineMetric'
 
 interface WeatherDay {
   date: string
@@ -19,6 +21,8 @@ export default function DashboardPage() {
   const [chatHistory, setChatHistory] = useState<{role: string, content: string}[]>([])
   const [chatLoading, setChatLoading] = useState(false)
   const [weather, setWeather] = useState<WeatherDay[]>([])
+  const [historicalWeather, setHistoricalWeather] = useState<WeatherDay[]>([])
+  const [forecastWeather, setForecastWeather] = useState<WeatherDay[]>([])
   const [currentWeather, setCurrentWeather] = useState<any>(null)
   const [hunts, setHunts] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
@@ -49,6 +53,8 @@ export default function DashboardPage() {
       return
     }
     loadWeather()
+    loadHistoricalWeather()
+    loadForecastWeather()
     loadHunts()
   }, [])
 
@@ -71,6 +77,35 @@ export default function DashboardPage() {
       console.error('Weather load error:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadHistoricalWeather = async () => {
+    try {
+      const endDate = new Date()
+      endDate.setDate(endDate.getDate() - 1)
+      const startDate = new Date(endDate)
+      startDate.setDate(startDate.getDate() - 30)
+
+      const res = await fetch(`/api/test-visual-crossing?type=historical&lat=${location.lat}&lon=${location.lon}&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`)
+      const data = await res.json()
+      if (data.success) {
+        setHistoricalWeather(data.data)
+      }
+    } catch (error) {
+      console.error('Historical weather load error:', error)
+    }
+  }
+
+  const loadForecastWeather = async () => {
+    try {
+      const res = await fetch(`/api/test-visual-crossing?type=forecast&lat=${location.lat}&lon=${location.lon}&days=7`)
+      const data = await res.json()
+      if (data.success) {
+        setForecastWeather(data.data)
+      }
+    } catch (error) {
+      console.error('Forecast weather load error:', error)
     }
   }
 
@@ -185,8 +220,127 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Current Conditions */}
-            {currentWeather && weather.length > 0 && (
+            {/* TIMELINE VIEW: PAST → NOW → FUTURE */}
+            {currentWeather && historicalWeather.length > 0 && forecastWeather.length > 0 && (() => {
+              // Format timeline data: historical (30d) + current + forecast (7d)
+              const buildTimeline = (field: string) => {
+                const historical = historicalWeather.map(d => ({
+                  date: d.date,
+                  value: d.hours?.[12]?.[field] || 0,
+                  isForecast: false
+                }))
+
+                const forecast = forecastWeather.slice(1).map(d => ({
+                  date: d.date,
+                  value: d.hours?.[12]?.[field] || 0,
+                  isForecast: true
+                }))
+
+                return { historical, forecast }
+              }
+
+              return (
+                <div className="space-y-1">
+                  <div className="bg-gray-800 px-3 py-2 border border-gray-700">
+                    <span className="text-xs text-gray-400 font-mono uppercase">TIMELINE: PAST 30 DAYS → NOW → FUTURE 7 DAYS</span>
+                  </div>
+
+                  {/* PRESSURE - Most Critical */}
+                  <TimelineMetric
+                    label="PRESSURE"
+                    unit="mb"
+                    historicalData={buildTimeline('pressure').historical}
+                    currentValue={currentWeather.pressure}
+                    forecastData={buildTimeline('pressure').forecast}
+                    color="#3B82F6"
+                    size="large"
+                  />
+
+                  {/* Other key metrics */}
+                  <div className="grid grid-cols-2 gap-1">
+                    <TimelineMetric
+                      label="TEMPERATURE"
+                      unit="°F"
+                      historicalData={buildTimeline('temperature').historical}
+                      currentValue={currentWeather.temperature}
+                      forecastData={buildTimeline('temperature').forecast}
+                      color="#EF4444"
+                      size="medium"
+                    />
+                    <TimelineMetric
+                      label="WIND SPEED"
+                      unit="mph"
+                      historicalData={buildTimeline('wind_speed').historical}
+                      currentValue={currentWeather.wind_speed}
+                      forecastData={buildTimeline('wind_speed').forecast}
+                      color="#06B6D4"
+                      size="medium"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    <TimelineMetric
+                      label="HUMIDITY"
+                      unit="%"
+                      historicalData={buildTimeline('humidity').historical}
+                      currentValue={currentWeather.humidity}
+                      forecastData={buildTimeline('humidity').forecast}
+                      color="#10B981"
+                      size="small"
+                    />
+                    <TimelineMetric
+                      label="DEW POINT"
+                      unit="°F"
+                      historicalData={buildTimeline('dew_point').historical}
+                      currentValue={currentWeather.dew_point}
+                      forecastData={buildTimeline('dew_point').forecast}
+                      color="#F97316"
+                      size="small"
+                    />
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Data Terminal */}
+            {currentWeather && weather.length > 0 && historicalWeather.length > 0 && (() => {
+              // Calculate averages
+              const calc7d = (field: string) => {
+                const vals = historicalWeather.slice(-7).map(d => d.hours?.[12]?.[field]).filter(Boolean)
+                return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
+              }
+              const calc30d = (field: string) => {
+                const vals = historicalWeather.map(d => d.hours?.[12]?.[field]).filter(Boolean)
+                return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
+              }
+
+              return (
+                <div className="mt-4 grid grid-cols-4 gap-1">
+                  <div className="col-span-2 row-span-2">
+                    <DataMetric
+                      label="PRESSURE"
+                      current={currentWeather.pressure}
+                      unit="mb"
+                      data24h={weather[0]?.hours.map((h: any) => ({ x: h.datetime.slice(0,5), value: h.pressure })) || []}
+                      avg7d={calc7d('pressure')}
+                      avg30d={calc30d('pressure')}
+                      size="large"
+                      color="#3B82F6"
+                    />
+                  </div>
+                  <DataMetric label="TEMPERATURE" current={currentWeather.temperature} unit="°F" data24h={weather[0]?.hours.map((h: any) => ({ x: h.datetime.slice(0,5), value: h.temperature })) || []} avg7d={calc7d('temperature')} avg30d={calc30d('temperature')} size="medium" color="#EF4444" />
+                  <DataMetric label="HUMIDITY" current={currentWeather.humidity} unit="%" data24h={weather[0]?.hours.map((h: any) => ({ x: h.datetime.slice(0,5), value: h.humidity })) || []} avg7d={calc7d('humidity')} avg30d={calc30d('humidity')} size="medium" color="#10B981" />
+                  <DataMetric label="WIND SPEED" current={currentWeather.wind_speed} unit="mph" data24h={weather[0]?.hours.map((h: any) => ({ x: h.datetime.slice(0,5), value: h.wind_speed })) || []} avg7d={calc7d('wind_speed')} avg30d={calc30d('wind_speed')} size="medium" color="#06B6D4" />
+                  <DataMetric label="DEW POINT" current={currentWeather.dew_point} unit="°F" data24h={weather[0]?.hours.map((h: any) => ({ x: h.datetime.slice(0,5), value: h.dew_point })) || []} avg7d={calc7d('dew_point')} avg30d={calc30d('dew_point')} size="medium" color="#F97316" />
+                  <DataMetric label="CLOUD COVER" current={currentWeather.cloud_cover} unit="%" data24h={weather[0]?.hours.map((h: any) => ({ x: h.datetime.slice(0,5), value: h.cloud_cover })) || []} avg7d={calc7d('cloud_cover')} avg30d={calc30d('cloud_cover')} size="small" color="#9CA3AF" />
+                  <DataMetric label="VISIBILITY" current={currentWeather.visibility} unit="mi" data24h={weather[0]?.hours.map((h: any) => ({ x: h.datetime.slice(0,5), value: h.visibility })) || []} avg7d={calc7d('visibility')} avg30d={calc30d('visibility')} size="small" color="#6366F1" />
+                  <DataMetric label="UV INDEX" current={currentWeather.uv_index} unit="" data24h={weather[0]?.hours.map((h: any) => ({ x: h.datetime.slice(0,5), value: h.uv_index })) || []} avg7d={calc7d('uv_index')} avg30d={calc30d('uv_index')} size="small" color="#F59E0B" />
+                  <DataMetric label="WIND GUST" current={currentWeather.wind_gust} unit="mph" data24h={weather[0]?.hours.map((h: any) => ({ x: h.datetime.slice(0,5), value: h.wind_gust })) || []} avg7d={calc7d('wind_gust')} avg30d={calc30d('wind_gust')} size="small" color="#06B6D4" />
+                </div>
+              )
+            })()}
+
+            {/* Old content - keep for now */}
+            {currentWeather && weather.length > 0 && false && (
               <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
                 <div className="flex justify-between items-start">
                   <div>

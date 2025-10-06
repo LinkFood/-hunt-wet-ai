@@ -11,8 +11,11 @@ export default function LoginPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Check password (stored in localStorage for now)
+    // Check password
     if (password === 'huntseason2024') {
+      // Set cookie for middleware
+      document.cookie = `hunt-wet-auth=huntseason2024; path=/; max-age=31536000`
+      // Set localStorage for dashboard
       localStorage.setItem('hunt_wet_auth', 'true')
       router.push('/dashboard')
     } else {

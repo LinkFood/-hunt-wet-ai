@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   getHistoricalWeather,
+  getHistoricalWeatherRange,
   getForecastWeather,
   getPressureTrend
 } from '@/lib/weather-visual-crossing'
@@ -24,10 +25,27 @@ export async function GET(request: NextRequest) {
     const lat = parseFloat(searchParams.get('lat') || '39.4')
     const lon = parseFloat(searchParams.get('lon') || '-76.6')
     const date = searchParams.get('date') || '2024-10-15'
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
     const time = searchParams.get('time') || '12:00:00'
     const days = parseInt(searchParams.get('days') || '7')
 
     if (type === 'historical') {
+      // Handle date range for trends - ACTUAL PAST WEATHER
+      if (startDate && endDate) {
+        console.log(`Fetching HISTORICAL weather range: ${startDate} to ${endDate} at ${lat},${lon}`)
+        const historicalData = await getHistoricalWeatherRange(lat, lon, startDate, endDate)
+
+        return NextResponse.json({
+          success: true,
+          type: 'historical-range',
+          params: { lat, lon, startDate, endDate },
+          data: historicalData,
+          note: 'ACTUAL past weather, not forecasts'
+        })
+      }
+
+      // Single date historical
       console.log(`Testing historical weather: ${date} ${time} at ${lat},${lon}`)
       const weather = await getHistoricalWeather(lat, lon, date, time)
 
