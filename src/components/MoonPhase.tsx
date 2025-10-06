@@ -99,26 +99,29 @@ export default function MoonPhase({ phase, forecastPhases, size = 'medium' }: Mo
   }
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-3">
       {renderMoon()}
-      <div className="text-center space-y-1">
-        <div className="text-xs font-mono text-gray-300 uppercase">{phaseName}</div>
-        <div className="text-xs text-gray-500 font-mono">{illumination}% Illuminated</div>
+      <div className="text-center space-y-1.5">
+        {/* Phase Name - Bigger */}
+        <div className="text-sm font-mono text-gray-300 uppercase font-bold">{phaseName}</div>
+
+        {/* Illumination - BIGGEST */}
+        <div className="text-2xl font-mono text-white font-bold">{illumination}%</div>
 
         {/* Context: Trend */}
         <div className="text-xs text-gray-400 font-mono">
           {trend} {trendIcon}
         </div>
 
-        {/* Context: Next Phase */}
+        {/* Context: Next Phase - More prominent */}
         {nextPhaseInfo && (
-          <div className="text-xs text-yellow-500 font-mono">
+          <div className="text-sm text-yellow-500 font-mono font-bold">
             {nextPhaseInfo.phase} in {nextPhaseInfo.days}d
           </div>
         )}
 
-        {/* Context: Hunting Quality */}
-        <div className={`text-xs font-mono ${
+        {/* Context: Hunting Quality - More prominent */}
+        <div className={`text-sm font-mono font-bold ${
           illumination > 75 ? 'text-red-400' : illumination < 25 ? 'text-green-400' : 'text-gray-400'
         }`}>
           {illumination > 75 ? 'LOW ACTIVITY' : illumination < 25 ? 'PEAK ACTIVITY' : 'MODERATE'}

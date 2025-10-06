@@ -68,18 +68,18 @@ export default function SunMoonTimes({ sunrise, sunset, forecastSunrise, forecas
 
   return (
     <div className="bg-gray-900 border border-gray-700 p-3">
-      <div className="flex justify-between items-center mb-2">
+      <div className="flex justify-between items-start mb-3">
         <span className="text-xs text-gray-400 font-mono uppercase">SUN TIMES</span>
-        <div className="text-right">
-          <div className="text-xs text-gray-500 font-mono">
+        <div className="text-right space-y-1">
+          <div className={`text-sm font-mono font-bold ${isDaylight ? 'text-yellow-500' : 'text-blue-400'}`}>
             {isDaylight ? 'DAYLIGHT' : 'DARK'}
           </div>
-          <div className="text-xs text-gray-600 font-mono">
-            {daylightHours}h {daylightMins}m total
+          <div className="text-lg text-white font-mono font-bold">
+            {daylightHours}h {daylightMins}m
           </div>
           {daylightTrend && (
             <div className={`text-xs font-mono ${daylightTrend.direction === 'longer' ? 'text-yellow-500' : 'text-blue-400'}`}>
-              {daylightTrend.minutes}min {daylightTrend.direction} tomorrow
+              {daylightTrend.minutes}min {daylightTrend.direction}
             </div>
           )}
         </div>

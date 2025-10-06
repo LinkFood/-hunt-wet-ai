@@ -356,6 +356,7 @@ export default function DashboardPage() {
                       avg30d={calc30d('pressure')}
                       size="large"
                       color="#3B82F6"
+                      showRateOfChange={true}
                     />
                   </div>
                   <DataMetric label="TEMPERATURE" current={currentWeather.temperature} unit="°F" data24h={weather[0]?.hours.map((h: any) => ({ x: h.datetime.slice(0,5), value: h.temperature })) || []} avg7d={calc7d('temperature')} avg30d={calc30d('temperature')} size="medium" color="#EF4444" />

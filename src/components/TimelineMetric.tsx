@@ -1,6 +1,6 @@
 'use client'
 
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area, ComposedChart } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area, ComposedChart, ReferenceArea } from 'recharts'
 
 interface TimelineDataPoint {
   date: string
@@ -102,6 +102,15 @@ export default function TimelineMetric({
           <ComposedChart data={allData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
 
+            {/* Shaded forecast region */}
+            <ReferenceArea
+              x1={currentPoint.date}
+              x2={forecastData[forecastData.length - 1]?.date}
+              fill="#FBBF24"
+              fillOpacity={0.05}
+              stroke="none"
+            />
+
             <XAxis
               dataKey="date"
               stroke="#4B5563"
@@ -119,7 +128,7 @@ export default function TimelineMetric({
               style={{ fontSize: '9px' }}
               tickLine={false}
               axisLine={false}
-              domain={[min - 2, max + 2]}
+              domain={[Math.floor(min * 0.98), Math.ceil(max * 1.02)]}
             />
 
             <Tooltip

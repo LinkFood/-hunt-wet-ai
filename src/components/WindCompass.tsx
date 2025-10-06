@@ -107,30 +107,33 @@ export default function WindCompass({ direction, speed, gust, forecastSpeeds, fo
       </svg>
 
       {/* Wind data */}
-      <div className="mt-3 text-center space-y-1">
-        <div className="text-2xl font-mono text-white">{speed} mph</div>
-        <div className="text-xs text-gray-500 font-mono">{direction}° {getCardinal(direction)}</div>
+      <div className="mt-3 text-center space-y-1.5">
+        {/* Speed - BIGGEST */}
+        <div className="text-3xl font-mono text-white font-bold">{speed} mph</div>
 
-        {/* Context: Current Gusts */}
+        {/* Direction */}
+        <div className="text-sm text-gray-400 font-mono">{direction}° {getCardinal(direction)}</div>
+
+        {/* Context: Current Gusts - More prominent */}
         {gust && gust > speed && (
-          <div className="text-xs text-yellow-500 font-mono">
+          <div className="text-sm text-yellow-500 font-mono font-bold">
             Gusts: {gust} mph
           </div>
         )}
 
-        {/* Context: Trend */}
+        {/* Context: Trend - More prominent */}
         {windTrend && windTrend.direction !== 'steady' && (
-          <div className={`text-xs font-mono ${
+          <div className={`text-sm font-mono font-bold ${
             windTrend.direction === 'increasing' ? 'text-red-400' : 'text-green-400'
           }`}>
             {windTrend.direction} to {speed + (windTrend.direction === 'increasing' ? windTrend.amount : -windTrend.amount)}mph
           </div>
         )}
 
-        {/* Context: Peak Gusts Forecast */}
+        {/* Context: Peak Gusts Forecast - More prominent */}
         {peakGust > speed + 2 && (
-          <div className="text-xs text-orange-500 font-mono">
-            Peak gusts: {Math.round(peakGust)}mph (next 6h)
+          <div className="text-sm text-orange-500 font-mono font-bold">
+            Peak: {Math.round(peakGust)}mph
           </div>
         )}
       </div>

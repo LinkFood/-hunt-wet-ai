@@ -16,6 +16,7 @@ interface DataMetricProps {
   avg30d?: number
   size?: 'large' | 'medium' | 'small'
   color?: string
+  showRateOfChange?: boolean // For pressure
 }
 
 export default function DataMetric({
@@ -26,10 +27,35 @@ export default function DataMetric({
   avg7d,
   avg30d,
   size = 'medium',
-  color = '#3B82F6'
+  color = '#3B82F6',
+  showRateOfChange = false
 }: DataMetricProps) {
   const heightMap = { large: 200, medium: 120, small: 80 }
   const fontMap = { large: 'text-5xl', medium: 'text-3xl', small: 'text-xl' }
+
+  // Calculate rate of change (for pressure)
+  const calculateRateOfChange = () => {
+    if (!showRateOfChange || data24h.length < 4) return null
+
+    // Get last 3 hours of data
+    const recent3 = data24h.slice(-3)
+    if (recent3.length < 2) return null
+
+    const first = recent3[0].value
+    const last = recent3[recent3.length - 1].value
+    const change = last - first
+    const hoursSpan = recent3.length - 1
+
+    const changePerHour = change / hoursSpan
+
+    return {
+      value: changePerHour,
+      direction: changePerHour > 0.5 ? 'rising' : changePerHour < -0.5 ? 'falling' : 'steady',
+      icon: changePerHour > 0.5 ? '↗' : changePerHour < -0.5 ? '↘' : '→'
+    }
+  }
+
+  const rateOfChange = calculateRateOfChange()
 
   return (
     <div className="bg-gray-900 border border-gray-700">
@@ -46,9 +72,27 @@ export default function DataMetric({
 
       {/* Current Value */}
       <div className="px-3 py-2 bg-gray-850">
-        <span className={`${fontMap[size]} font-mono text-white`}>
-          {current.toFixed(size === 'small' ? 0 : 1)}{unit}
-        </span>
+        <div className="flex items-baseline justify-between">
+          <span className={`${fontMap[size]} font-mono text-white`}>
+            {current.toFixed(size === 'small' ? 0 : 1)}{unit}
+          </span>
+
+          {/* Rate of Change - For Pressure */}
+          {rateOfChange && (
+            <div className="flex flex-col items-end">
+              <span className={`text-lg font-mono ${
+                rateOfChange.direction === 'rising' ? 'text-red-400' :
+                rateOfChange.direction === 'falling' ? 'text-green-400' :
+                'text-gray-400'
+              }`}>
+                {rateOfChange.icon}
+              </span>
+              <span className="text-xs text-gray-500 font-mono">
+                {Math.abs(rateOfChange.value).toFixed(1)} mb/hr
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Chart */}
@@ -68,7 +112,7 @@ export default function DataMetric({
               style={{ fontSize: '9px' }}
               tickLine={false}
               axisLine={false}
-              domain={['dataMin - 2', 'dataMax + 2']}
+              domain={[(dataMin: number) => Math.floor(dataMin * 0.98), (dataMax: number) => Math.ceil(dataMax * 1.02)]}
             />
             <Tooltip
               contentStyle={{
