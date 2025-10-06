@@ -117,8 +117,8 @@ export default function TimelineMetric({
               }}
               formatter={(value: any, name: any, props: any) => {
                 const isForecast = props.payload.isForecast
-                return [`${value}${unit} ${isForecast ? '(forecast)' : '(actual)'}`, ''
-              ]}
+                return [`${value}${unit} ${isForecast ? '(forecast)' : '(actual)'}`, '']
+              }}
             />
 
             {/* Reference lines for averages - FACTS */}
