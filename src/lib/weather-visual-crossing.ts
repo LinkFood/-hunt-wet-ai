@@ -32,6 +32,7 @@ export interface VisualCrossingWeatherData {
   precip: number // Inches
   precip_prob: number // 0-100
   precip_type?: string // 'rain', 'snow', 'none'
+  snow_depth?: number
 
   // Sky conditions
   cloud_cover: number // 0-100
@@ -39,13 +40,20 @@ export interface VisualCrossingWeatherData {
   conditions: string // 'Clear', 'Cloudy', etc.
   description?: string
 
-  // Sun
+  // Sun & Moon (CRITICAL for hunting)
   sunrise?: string // ISO timestamp
   sunset?: string // ISO timestamp
+  moonphase?: number // 0-1 (0=new, 0.25=first quarter, 0.5=full, 0.75=last quarter)
+
+  // Solar (affects animal behavior)
+  solar_radiation?: number // W/m²
+  solar_energy?: number // MJ/m²
+
+  // Severe weather
+  severe_risk?: number // 0-100
 
   // Other
   uv_index?: number
-  snow_depth?: number
 }
 
 export interface VisualCrossingHourlyForecast {
@@ -86,7 +94,7 @@ export async function getHistoricalWeather(
       key: API_KEY,
       unitGroup: 'us', // Fahrenheit, MPH, inches
       include: 'hours', // Include hourly data
-      elements: 'datetime,temp,feelslike,humidity,dew,pressure,windspeed,windgust,winddir,precipprob,precip,preciptype,cloudcover,visibility,conditions,description,sunrise,sunset,uvindex,snowdepth'
+      elements: 'datetime,temp,feelslike,humidity,dew,pressure,windspeed,windgust,winddir,precipprob,precip,preciptype,cloudcover,visibility,conditions,description,sunrise,sunset,moonphase,solarradiation,solarenergy,severerisk,uvindex,snowdepth'
     })
 
     const response = await fetch(`${url}?${params}`)
@@ -145,7 +153,7 @@ export async function getHistoricalWeatherRange(
       key: API_KEY,
       unitGroup: 'us',
       include: 'hours,days',
-      elements: 'datetime,temp,tempmax,tempmin,feelslike,humidity,dew,pressure,windspeed,windgust,winddir,precipprob,precip,preciptype,cloudcover,visibility,conditions,description,sunrise,sunset,uvindex'
+      elements: 'datetime,temp,tempmax,tempmin,feelslike,humidity,dew,pressure,windspeed,windgust,winddir,precipprob,precip,preciptype,cloudcover,visibility,conditions,description,sunrise,sunset,moonphase,solarradiation,solarenergy,severerisk,uvindex,snowdepth'
     })
 
     const response = await fetch(`${url}?${params}`)
@@ -200,7 +208,7 @@ export async function getForecastWeather(
       key: API_KEY,
       unitGroup: 'us',
       include: 'hours,days',
-      elements: 'datetime,temp,tempmax,tempmin,feelslike,humidity,dew,pressure,windspeed,windgust,winddir,precipprob,precip,preciptype,cloudcover,visibility,conditions,description,sunrise,sunset,uvindex'
+      elements: 'datetime,temp,tempmax,tempmin,feelslike,humidity,dew,pressure,windspeed,windgust,winddir,precipprob,precip,preciptype,cloudcover,visibility,conditions,description,sunrise,sunset,moonphase,solarradiation,solarenergy,severerisk,uvindex,snowdepth'
     })
 
     const response = await fetch(`${url}?${params}`)
@@ -336,6 +344,7 @@ function normalizeWeatherData(hourData: any, dayData: any): VisualCrossingWeathe
     precip: hourData.precip || dayData.precip || 0,
     precip_prob: hourData.precipprob || dayData.precipprob || 0,
     precip_type: hourData.preciptype?.[0] || dayData.preciptype?.[0] || 'none',
+    snow_depth: hourData.snowdepth || dayData.snowdepth,
 
     cloud_cover: hourData.cloudcover || dayData.cloudcover || 0,
     visibility: hourData.visibility || dayData.visibility || 10,
@@ -344,9 +353,14 @@ function normalizeWeatherData(hourData: any, dayData: any): VisualCrossingWeathe
 
     sunrise: dayData.sunrise,
     sunset: dayData.sunset,
+    moonphase: dayData.moonphase,
 
-    uv_index: hourData.uvindex || dayData.uvindex,
-    snow_depth: hourData.snowdepth || dayData.snowdepth
+    solar_radiation: hourData.solarradiation || dayData.solarradiation,
+    solar_energy: hourData.solarenergy || dayData.solarenergy,
+
+    severe_risk: hourData.severerisk || dayData.severerisk,
+
+    uv_index: hourData.uvindex || dayData.uvindex
   }
 }
 

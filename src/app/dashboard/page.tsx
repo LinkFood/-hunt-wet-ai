@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DataMetric from '@/components/DataMetric'
 import TimelineMetric from '@/components/TimelineMetric'
+import MoonPhase from '@/components/MoonPhase'
+import SunMoonTimes from '@/components/SunMoonTimes'
+import WindCompass from '@/components/WindCompass'
 
 interface WeatherDay {
   date: string
@@ -217,6 +220,34 @@ export default function DashboardPage() {
                 <button onClick={loadWeather} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded">
                   Retry
                 </button>
+              </div>
+            )}
+
+            {/* KEY HUNTING INDICATORS */}
+            {currentWeather && weather.length > 0 && (
+              <div className="grid grid-cols-3 gap-1 mb-4">
+                {/* Moon Phase */}
+                {weather[0]?.hours?.[0]?.moonphase !== undefined && (
+                  <div className="bg-gray-900 border border-gray-700 p-4 flex justify-center">
+                    <MoonPhase phase={weather[0].hours[0].moonphase} size="large" />
+                  </div>
+                )}
+
+                {/* Sun Times */}
+                {currentWeather?.sunrise && currentWeather?.sunset && (
+                  <SunMoonTimes
+                    sunrise={currentWeather.sunrise}
+                    sunset={currentWeather.sunset}
+                  />
+                )}
+
+                {/* Wind Compass */}
+                <WindCompass
+                  direction={currentWeather.wind_direction}
+                  speed={currentWeather.wind_speed}
+                  gust={currentWeather.wind_gust}
+                  size="medium"
+                />
               </div>
             )}
 
